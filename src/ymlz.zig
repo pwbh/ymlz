@@ -41,10 +41,13 @@ pub fn Ymlz(comptime Destination: type, yml_path: []const u8) type {
 
                 switch (@typeInfo(field.type)) {
                     .Int => {
-                        try self.file_reader.skipBytes(field.name.len, .{});
+                        // + 1 for the double colons
+                        try self.file_reader.skipBytes(field.name.len + 1, .{});
 
                         if (try self.getFieldValue()) |value| {
-                            @field(destination, field.name) = std.fmt.parseInt(field.type, value, 10);
+                            std.debug.print("getFieldValue():{s}\n", .{value});
+
+                            @field(destination, field.name) = try std.fmt.parseInt(field.type, value, 10);
                         } else {
                             @panic("received null instead of value\n");
                         }
@@ -56,47 +59,54 @@ pub fn Ymlz(comptime Destination: type, yml_path: []const u8) type {
                 }
             }
 
-            while (true) {
-                const byte = try self.file_reader.readByte();
+            // while (true) {
+            //     const byte = try self.file_reader.readByte();
 
-                switch (byte) {
-                    ' ' => {},
-                    '\n' => {},
-                    '-' => {
-                        try self.parseFileStart();
-                    },
-                    else => try self.parseText(),
-                }
+            //     switch (byte) {
+            //         ' ' => {},
+            //         '\n' => {},
+            //         '-' => {
+            //             try self.parseFileStart();
+            //         },
+            //         else => try self.parseText(),
+            //     }
 
-                self.current_index += 1;
-            }
+            //     self.current_index += 1;
+            // }
 
             return destination;
         }
 
         fn getFieldValue(self: *Self) !?[]const u8 {
             var buf: [1024]u8 = undefined;
-            const byte = try self.file_reader.readByte();
 
-            // skip empty lines
             while (true) {
+                const byte = try self.file_reader.readByte();
+
                 if (byte == ' ') {
+                    std.debug.print("HEREREREREERERE {any}\n", .{byte});
                     continue;
                 } else {
-                    break;
+                    std.debug.print("DAMN: {}\n", .{byte});
+                    buf[0] = byte;
+                    const total = try self.file_reader.readUntilDelimiterOrEof(buf[1..], '\n');
+
+                    if (total) |t| {
+                        return buf[0 .. t.len + 1];
+                    }
+
+                    return null;
                 }
             }
 
-            buf[0] = byte;
-
-            return try self.file_reader.readUntilDelimiterOrEof(buf[1..], '\n');
+            return null;
         }
 
         fn parseFileStart(self: *Self) !void {
-            var bytes: [2]u8 = undefined;
-            try self.file_reader.read(&bytes);
+            var buf: [2]u8 = undefined;
+            _ = try self.file_reader.read(&buf);
 
-            if (!std.mem.eql(u8, "--", bytes)) {
+            if (!std.mem.eql(u8, "--", &buf)) {
                 return error.NotYaml;
             }
         }

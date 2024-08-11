@@ -50,21 +50,4 @@ pub fn main() !void {
     const result = try ymlz.load();
 
     std.debug.print("{any}\n", .{result});
-
-    // std.debug.print("{s}\n", .{bytes});
-
-    // const S = struct {
-    //     int_a: i32 = 0,
-    //     int_b: i32 = 0,
-    //     int_c: i32 = 0,
-    //     float_a: f64 = 0,
-    //     float_b: f64 = 0,
-    // };
-    // var s: S = .{};
-    // var tag: StructTag(S) = @enumFromInt(0);
-    // setField(&s, tag, @as(i32, 1));
-    // std.debug.print("{any}\n", .{s});
-    // tag = @enumFromInt(2);
-    // setField(&s, tag, @as(i32, 10));
-    // std.debug.print("{any}\n", .{s});
 }
