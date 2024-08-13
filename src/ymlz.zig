@@ -71,7 +71,7 @@ pub fn Ymlz(comptime Destination: type, yml_path: []const u8) type {
 
         fn parseIntExpression(_: *Self, comptime T: type, expression: Expression) !T {
             if (expression.type == .complex) {
-                return error.NotIntButComplex;
+                return error.ExpectedIntRecievedComplex;
             }
 
             return std.fmt.parseInt(T, expression.value, 10);
