@@ -2,14 +2,23 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 
+const ExpressionType = enum {
+    complex,
+    simple,
+};
+
+const Expression = struct {
+    key: []const u8,
+    type: ExpressionType,
+    value: []const u8 = undefined,
+};
+
 pub fn Ymlz(comptime Destination: type, yml_path: []const u8) type {
     return struct {
         allocator: Allocator,
         file_start_found: bool,
         file_reader: std.fs.File.Reader,
         is_expression_start: bool,
-        current_index: usize,
-        current_field: usize,
 
         const Self = @This();
 
@@ -22,59 +31,76 @@ pub fn Ymlz(comptime Destination: type, yml_path: []const u8) type {
                 .file_start_found = false,
                 .file_reader = file_reader,
                 .is_expression_start = false,
-                .current_index = 0,
-                .current_field = 0,
             };
         }
 
         pub fn load(self: *Self) !Destination {
             var destination: Destination = undefined;
 
-            if (@typeInfo(Destination) != .Struct) {
-                @panic("ymlz only able to load into structs");
+            if (@typeInfo(@TypeOf(destination)) != .Struct) {
+                @panic("ymlz only able to load yml files into structs");
             }
 
             const destination_reflaction = @typeInfo(@TypeOf(destination));
 
             inline for (destination_reflaction.Struct.fields) |field| {
-                std.debug.print("Type: {any}\n", .{@typeInfo(@TypeOf(field.type))});
+                std.debug.print("Field name: {s}\n", .{field.name});
 
                 switch (@typeInfo(field.type)) {
                     .Int => {
-                        // + 1 for the double colons
-                        try self.file_reader.skipBytes(field.name.len + 1, .{});
-
-                        if (try self.getFieldValue()) |value| {
-                            std.debug.print("getFieldValue():{s}\n", .{value});
-
-                            @field(destination, field.name) = try std.fmt.parseInt(field.type, value, 10);
-                        } else {
-                            @panic("received null instead of value\n");
-                        }
+                        const expression = try self.parseExpression();
+                        std.debug.print("{any} key: {s} value: {s}\n", .{ expression, expression.key, expression.value });
+                        @field(destination, field.name) = try self.parseIntExpression(field.type, expression);
                     },
-
                     else => {
                         @panic("unhandled type paseed - " ++ @typeName(field.type) ++ "\n");
                     },
                 }
             }
 
-            // while (true) {
-            //     const byte = try self.file_reader.readByte();
-
-            //     switch (byte) {
-            //         ' ' => {},
-            //         '\n' => {},
-            //         '-' => {
-            //             try self.parseFileStart();
-            //         },
-            //         else => try self.parseText(),
-            //     }
-
-            //     self.current_index += 1;
-            // }
-
             return destination;
+        }
+
+        fn parseIntExpression(_: *Self, comptime T: type, expression: Expression) !T {
+            if (expression.type == .complex) {
+                return error.NotIntButComplex;
+            }
+
+            return std.fmt.parseInt(T, expression.value, 10);
+        }
+
+        fn parseExpression(self: *Self) !Expression {
+            var expression: Expression = undefined;
+
+            const possible_line = try self.file_reader.readUntilDelimiterOrEofAlloc(
+                self.allocator,
+                '\n',
+                std.math.maxInt(usize),
+            );
+
+            if (possible_line) |line| {
+                var tokens_iterator = std.mem.split(u8, line, ": ");
+                const key = tokens_iterator.next();
+
+                if (key) |k| {
+                    const value = tokens_iterator.next();
+
+                    expression.key = k;
+                    expression.type = if (value == null) .complex else .simple;
+
+                    if (value) |v| {
+                        expression.value = v;
+                    } else {
+                        return self.parseExpression();
+                    }
+                } else {
+                    return error.ExpressionNoKey;
+                }
+
+                return expression;
+            }
+
+            return error.EOF;
         }
 
         fn getFieldValue(self: *Self) !?[]const u8 {
@@ -84,10 +110,8 @@ pub fn Ymlz(comptime Destination: type, yml_path: []const u8) type {
                 const byte = try self.file_reader.readByte();
 
                 if (byte == ' ') {
-                    std.debug.print("HEREREREREERERE {any}\n", .{byte});
                     continue;
                 } else {
-                    std.debug.print("DAMN: {}\n", .{byte});
                     buf[0] = byte;
                     const total = try self.file_reader.readUntilDelimiterOrEof(buf[1..], '\n');
 

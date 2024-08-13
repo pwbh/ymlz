@@ -39,7 +39,10 @@ pub fn setField(ptr: anytype, tag: StructTag(@TypeOf(ptr.*)), value: anytype) vo
     }
 }
 
-const Tester = struct { first: i32, second: i32 };
+const Tester = struct {
+    first: i32,
+    second: i32,
+};
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -49,5 +52,5 @@ pub fn main() !void {
     var ymlz = try Ymlz(Tester, "/Users/pwbh/Workspace/ymlz/super_simple.yml").init(allocator);
     const result = try ymlz.load();
 
-    std.debug.print("{any}\n", .{result});
+    std.debug.print("Tester: {any}\n", .{result});
 }
