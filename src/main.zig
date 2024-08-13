@@ -41,7 +41,8 @@ pub fn setField(ptr: anytype, tag: StructTag(@TypeOf(ptr.*)), value: anytype) vo
 
 const Tester = struct {
     first: i32,
-    second: i32,
+    second: i64,
+    name: []const u8,
 };
 
 pub fn main() !void {
@@ -53,4 +54,5 @@ pub fn main() !void {
     const result = try ymlz.load();
 
     std.debug.print("Tester: {any}\n", .{result});
+    std.debug.print("Tester.name: {s}\n", .{result.name});
 }

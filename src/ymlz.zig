@@ -45,14 +45,22 @@ pub fn Ymlz(comptime Destination: type, yml_path: []const u8) type {
 
             inline for (destination_reflaction.Struct.fields) |field| {
                 std.debug.print("Field name: {s}\n", .{field.name});
+                const expression = try self.parseExpression();
 
                 switch (@typeInfo(field.type)) {
                     .Int => {
-                        const expression = try self.parseExpression();
                         std.debug.print("{any} key: {s} value: {s}\n", .{ expression, expression.key, expression.value });
                         @field(destination, field.name) = try self.parseIntExpression(field.type, expression);
                     },
+                    .Pointer => {
+                        const typeInfo = @typeInfo(field.type);
+
+                        if (typeInfo.Pointer.size == .Slice and typeInfo.Pointer.is_const and typeInfo.Pointer.child == u8) {
+                            @field(destination, field.name) = expression.value;
+                        }
+                    },
                     else => {
+                        std.debug.print("Type info: {any}\n", .{@typeInfo([]const u8)});
                         @panic("unhandled type paseed - " ++ @typeName(field.type) ++ "\n");
                     },
                 }
