@@ -2,15 +2,19 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 
-const ExpressionType = enum {
-    complex,
-    simple,
+const Dictionary = struct {
+    key: []const u8,
+    values: [][]const u8,
+};
+
+const Value = union(enum) {
+    Simple: []const u8,
+    Dictionary: Dictionary,
 };
 
 const Expression = struct {
     key: []const u8,
-    type: ExpressionType,
-    value: []const u8 = undefined,
+    value: Value,
 };
 
 pub fn Ymlz(comptime Destination: type, yml_path: []const u8) type {
@@ -45,18 +49,19 @@ pub fn Ymlz(comptime Destination: type, yml_path: []const u8) type {
 
             inline for (destination_reflaction.Struct.fields) |field| {
                 std.debug.print("Field name: {s}\n", .{field.name});
-                const expression = try self.parseExpression();
+                const expression = try self.parseExpression(null);
+                const typeInfo = @typeInfo(field.type);
 
-                switch (@typeInfo(field.type)) {
+                switch (typeInfo) {
                     .Int => {
-                        std.debug.print("{any} key: {s} value: {s}\n", .{ expression, expression.key, expression.value });
                         @field(destination, field.name) = try self.parseIntExpression(field.type, expression);
                     },
+                    .Float => {
+                        @field(destination, field.name) = try self.parseFloatExpression(field.type, expression);
+                    },
                     .Pointer => {
-                        const typeInfo = @typeInfo(field.type);
-
                         if (typeInfo.Pointer.size == .Slice and typeInfo.Pointer.is_const and typeInfo.Pointer.child == u8) {
-                            @field(destination, field.name) = expression.value;
+                            @field(destination, field.name) = try self.parseStringExpression(expression);
                         }
                     },
                     else => {
@@ -69,16 +74,49 @@ pub fn Ymlz(comptime Destination: type, yml_path: []const u8) type {
             return destination;
         }
 
-        fn parseIntExpression(_: *Self, comptime T: type, expression: Expression) !T {
-            if (expression.type == .complex) {
-                return error.ExpectedIntRecievedComplex;
+        fn parseStringExpression(self: *Self, expression: Expression) ![]const u8 {
+            _ = self;
+
+            if (expression.value != .Simple) {
+                return error.ExpectedSimpleRecivedOther;
             }
 
-            return std.fmt.parseInt(T, expression.value, 10);
+            return expression.value.Simple;
         }
 
-        fn parseExpression(self: *Self) !Expression {
+        fn parseFloatExpression(self: *Self, comptime T: type, expression: Expression) !T {
+            _ = self;
+
+            if (expression.value != .Simple) {
+                return error.ExpectedSimpleRecivedOther;
+            }
+
+            return std.fmt.parseFloat(T, expression.value.Simple);
+        }
+
+        fn parseIntExpression(self: *Self, comptime T: type, expression: Expression) !T {
+            _ = self;
+
+            if (expression.value != .Simple) {
+                return error.ExpectedSimpleRecivedOther;
+            }
+
+            return std.fmt.parseInt(T, expression.value.Simple, 10);
+        }
+
+        // TODO: rename to parseComplexExpression
+        fn parseChildExpression(self: *Self, parent: Expression, child: *Expression) !Expression {
+            _ = self;
+            _ = parent;
+            return child.*;
+        }
+
+        fn parseExpression(self: *Self, parent: ?Expression) !Expression {
             var expression: Expression = undefined;
+
+            if (parent) |p| {
+                return self.parseChildExpression(p, &expression);
+            }
 
             const possible_line = try self.file_reader.readUntilDelimiterOrEofAlloc(
                 self.allocator,
@@ -94,12 +132,11 @@ pub fn Ymlz(comptime Destination: type, yml_path: []const u8) type {
                     const value = tokens_iterator.next();
 
                     expression.key = k;
-                    expression.type = if (value == null) .complex else .simple;
 
                     if (value) |v| {
-                        expression.value = v;
+                        expression.value = .{ .Simple = v };
                     } else {
-                        return self.parseExpression();
+                        return self.parseExpression(expression);
                     }
                 } else {
                     return error.ExpressionNoKey;

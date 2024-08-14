@@ -43,6 +43,8 @@ const Tester = struct {
     first: i32,
     second: i64,
     name: []const u8,
+    fourth: f32,
+    foods: [][]const u8,
 };
 
 pub fn main() !void {
@@ -55,4 +57,5 @@ pub fn main() !void {
 
     std.debug.print("Tester: {any}\n", .{result});
     std.debug.print("Tester.name: {s}\n", .{result.name});
+    std.debug.print("Tester.forth: {}\n", .{result.fourth});
 }
