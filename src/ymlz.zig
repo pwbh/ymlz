@@ -62,11 +62,13 @@ pub fn Ymlz(comptime Destination: type, yml_path: []const u8) type {
                     .Pointer => {
                         if (typeInfo.Pointer.size == .Slice and typeInfo.Pointer.is_const and typeInfo.Pointer.child == u8) {
                             @field(destination, field.name) = try self.parseStringExpression(expression);
+                        } else {
+                            @panic("unexpeted type received - " ++ @typeName(field.type) ++ " expected []const u8\n");
                         }
                     },
                     else => {
                         std.debug.print("Type info: {any}\n", .{@typeInfo([]const u8)});
-                        @panic("unhandled type paseed - " ++ @typeName(field.type) ++ "\n");
+                        @panic("unexpeted type recieved - " ++ @typeName(field.type) ++ "\n");
                     },
                 }
             }
