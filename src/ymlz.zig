@@ -60,10 +60,13 @@ pub fn Ymlz(comptime Destination: type, yml_path: []const u8) type {
                         @field(destination, field.name) = try self.parseFloatExpression(field.type, expression);
                     },
                     .Pointer => {
-                        if (typeInfo.Pointer.size == .Slice and typeInfo.Pointer.is_const and typeInfo.Pointer.child == u8) {
+                        if (typeInfo.Pointer.size == .Slice and typeInfo.Pointer.child == u8) {
                             @field(destination, field.name) = try self.parseStringExpression(expression);
+                        } else if (typeInfo.Pointer.size == .Slice and typeInfo.Pointer.child == []const u8) {
+                            std.debug.print("Need to handle this case\n", .{});
                         } else {
-                            @panic("unexpeted type received - " ++ @typeName(field.type) ++ " expected []const u8\n");
+                            std.debug.print("Type info: {any}\n", .{@typeInfo([]const u8)});
+                            @panic("unexpeted type recieved - " ++ @typeName(field.type) ++ "\n");
                         }
                     },
                     else => {
