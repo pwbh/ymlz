@@ -50,12 +50,12 @@ const Tester = struct {
     second: i64,
     name: []const u8,
     fourth: f32,
-    foods: [][]const u8,
-    tutorial: struct {
-        yml: Tutorial,
-        json: Tutorial,
-        xml: Tutorial,
-    },
+    // foods: [][]const u8,
+    // tutorial: struct {
+    //     yml: Tutorial,
+    //     json: Tutorial,
+    //     xml: Tutorial,
+    // },
 };
 
 pub fn main() !void {
