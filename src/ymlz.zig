@@ -38,6 +38,11 @@ pub fn Ymlz(comptime Destination: type) type {
             };
         }
 
+        pub fn deinit(self: *Self) void {
+            _ = self;
+            // TODO: Need to save all references to where I allocate memory and make sure to deinit recursively from the end.
+        }
+
         pub fn load(self: *Self) !Destination {
             var destination: Destination = undefined;
 
