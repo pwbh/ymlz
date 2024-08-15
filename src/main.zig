@@ -39,12 +39,23 @@ pub fn setField(ptr: anytype, tag: StructTag(@TypeOf(ptr.*)), value: anytype) vo
     }
 }
 
+const Tutorial = struct {
+    name: []const u8,
+    type: []const u8,
+    born: u16,
+};
+
 const Tester = struct {
     first: i32,
     second: i64,
     name: []const u8,
     fourth: f32,
     foods: [][]const u8,
+    tutorial: struct {
+        yml: Tutorial,
+        json: Tutorial,
+        xml: Tutorial,
+    },
 };
 
 pub fn main() !void {
@@ -52,7 +63,15 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
-    var ymlz = try Ymlz(Tester, "/Users/pwbh/Workspace/ymlz/super_simple.yml").init(allocator);
+    const args = try std.process.argsAlloc(allocator);
+    defer std.process.argsFree(allocator, args);
+
+    if (args.len < 2) {
+        return error.NoPathArgument;
+    }
+
+    const yml_location = args[1];
+    var ymlz = try Ymlz(Tester).init(allocator, yml_location);
     const result = try ymlz.load();
 
     std.debug.print("Tester: {any}\n", .{result});

@@ -17,7 +17,7 @@ const Expression = struct {
     value: Value,
 };
 
-pub fn Ymlz(comptime Destination: type, yml_path: []const u8) type {
+pub fn Ymlz(comptime Destination: type) type {
     return struct {
         allocator: Allocator,
         file_start_found: bool,
@@ -26,7 +26,7 @@ pub fn Ymlz(comptime Destination: type, yml_path: []const u8) type {
 
         const Self = @This();
 
-        pub fn init(allocator: Allocator) !Self {
+        pub fn init(allocator: Allocator, yml_path: []const u8) !Self {
             const file_ds = try std.fs.openFileAbsolute(yml_path, .{ .mode = .read_only });
             const file_reader = file_ds.reader();
 

@@ -17,3 +17,16 @@ education: |
   4 GCSEs
   3 A-Levels
   BSc in the Internet of Things
+tutorial:
+  - yml:
+      name: "YAML Ain't Markup Language"
+      type: awesome
+      born: 2001
+  - json:
+      name: JavaScript Object Notation
+      type: great
+      born: 2001
+  - xml:
+      name: Extensible Markup Language
+      type: good
+      born: 1996
