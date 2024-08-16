@@ -2,6 +2,9 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 
+/// Count of spaces for one depth level
+const INDENT_SIZE = 2;
+
 const Dictionary = struct {
     key: []const u8,
     values: [][]const u8,
@@ -9,32 +12,31 @@ const Dictionary = struct {
 
 const Value = union(enum) {
     Simple: []const u8,
+    Array: [][]const u8,
     Dictionary: Dictionary,
 };
 
 const Expression = struct {
     key: []const u8,
     value: Value,
+    raw_representation: []const u8,
 };
 
 pub fn Ymlz(comptime Destination: type) type {
     return struct {
         allocator: Allocator,
-        file_start_found: bool,
-        file_reader: std.fs.File.Reader,
-        is_expression_start: bool,
+        file: std.fs.File,
+        current_parsed_expression: Expression,
 
         const Self = @This();
 
         pub fn init(allocator: Allocator, yml_path: []const u8) !Self {
-            const file_ds = try std.fs.openFileAbsolute(yml_path, .{ .mode = .read_only });
-            const file_reader = file_ds.reader();
+            const file = try std.fs.openFileAbsolute(yml_path, .{ .mode = .read_only });
 
             return .{
                 .allocator = allocator,
-                .file_start_found = false,
-                .file_reader = file_reader,
-                .is_expression_start = false,
+                .file = file,
+                .current_parsed_expression = undefined,
             };
         }
 
@@ -54,7 +56,22 @@ pub fn Ymlz(comptime Destination: type) type {
 
             inline for (destination_reflaction.Struct.fields) |field| {
                 std.debug.print("Field name: {s}\n", .{field.name});
-                const expression = try self.parseExpression(null);
+
+                // TODO: Need to use the file descriptor and dynamically open the reader everyime, and when
+                // new line is available, seek back and re-reade to new expression.
+                const raw_line = try self.file.reader().readUntilDelimiterOrEofAlloc(
+                    self.allocator,
+                    '\n',
+                    std.math.maxInt(usize),
+                );
+
+                if (self.isNewExpression(raw_line)) {
+                    self.current_parsed_expression = try self.parseExpression(raw_line);
+                } else {
+                    self.continueExpressionParse();
+                }
+
+                const expression = try self.parseExpression(raw_line);
                 const typeInfo = @typeInfo(field.type);
 
                 switch (typeInfo) {
@@ -82,6 +99,11 @@ pub fn Ymlz(comptime Destination: type) type {
             }
 
             return destination;
+        }
+
+        fn isNewExpression(self: *Self, raw_line: ?[]const u8) bool {
+            _ = self;
+            return raw_line != null and raw_line.?[0] != ' ';
         }
 
         fn parseStringExpression(self: *Self, expression: Expression) ![]const u8 {
@@ -114,28 +136,46 @@ pub fn Ymlz(comptime Destination: type) type {
             return std.fmt.parseInt(T, expression.value.Simple, 10);
         }
 
-        // TODO: rename to parseComplexExpression
-        fn parseChildExpression(self: *Self, parent: Expression, child: *Expression) !Expression {
-            _ = self;
-            _ = parent;
-            return child.*;
-        }
+        fn parseComplexExpression(self: *Self, expression: *Expression, depth: usize) !Expression {
+            const indenth_depth = INDENT_SIZE * (depth + 1);
 
-        fn parseExpression(self: *Self, parent: ?Expression) !Expression {
-            var expression: Expression = undefined;
+            expression.value = .{ .Array = &.{} };
 
-            if (parent) |p| {
-                return self.parseChildExpression(p, &expression);
-            }
-
-            const possible_line = try self.file_reader.readUntilDelimiterOrEofAlloc(
+            const raw_line = try self.file_reader.readUntilDelimiterOrEofAlloc(
                 self.allocator,
                 '\n',
                 std.math.maxInt(usize),
             );
 
-            if (possible_line) |line| {
-                var tokens_iterator = std.mem.split(u8, line, ": ");
+            if (raw_line) |line| {
+                // making sure we are still in the correct depth, e.g. we are still trying to parse the same object
+                // if we got here it means that the
+                if (line[0..indenth_depth] != "  " ** depth) {
+                    return self.parseExpression(raw_line);
+                }
+
+                switch (line[indenth_depth + 1]) {
+                    '-' => {},
+                    else => return error.UnknownComplexValue,
+                }
+            }
+
+            return error.EOF;
+        }
+
+        fn parseExpression(self: *Self, raw_line: ?[]const u8) !Expression {
+            var expression: Expression = undefined;
+
+            // const possible_line = try self.file_reader.readUntilDelimiterOrEofAlloc(
+            //     self.allocator,
+            //     '\n',
+            //     std.math.maxInt(usize),
+            // );
+
+            if (raw_line) |line| {
+                expression.raw_representation = line;
+
+                var tokens_iterator = std.mem.split(u8, line, ":");
                 const key = tokens_iterator.next();
 
                 if (key) |k| {
@@ -144,9 +184,11 @@ pub fn Ymlz(comptime Destination: type) type {
                     expression.key = k;
 
                     if (value) |v| {
-                        expression.value = .{ .Simple = v };
+                        // 0 - is a space
+                        expression.value = .{ .Simple = v[1..v.len] };
                     } else {
-                        return self.parseExpression(expression);
+                        self.parseComplexExpression(&expression, 0);
+                        return expression;
                     }
                 } else {
                     return error.ExpressionNoKey;
