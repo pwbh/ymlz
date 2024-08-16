@@ -77,4 +77,14 @@ pub fn main() !void {
     std.debug.print("Tester: {any}\n", .{result});
     std.debug.print("Tester.name: {s}\n", .{result.name});
     std.debug.print("Tester.forth: {}\n", .{result.fourth});
+
+    // const file = try std.fs.openFileAbsolute(yml_location, .{ .mode = .read_only });
+    // defer file.close();
+    // try file.seekBy(15);
+    // var buf: [5]u8 = undefined;
+    // _ = try file.reader().read(&buf);
+    // std.debug.print("buf: {s}\n", .{buf});
+    // try file.seekTo(0);
+    // _ = try file.reader().read(&buf);
+    // std.debug.print("buf: {s}\n", .{buf});
 }
