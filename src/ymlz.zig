@@ -75,15 +75,15 @@ pub fn Ymlz(comptime Destination: type) type {
                     .Pointer => {
                         if (typeInfo.Pointer.size == .Slice and typeInfo.Pointer.child == u8) {
                             @field(destination, field.name) = try self.parseStringExpression();
-                        } else if (typeInfo.Pointer.size == .Slice and (typeInfo.Pointer.child == []const u8 or typeInfo.Pointer.chil == []u8)) {
-                            @field(destination, field.name) = try self.parseStringArray();
+                        } else if (typeInfo.Pointer.size == .Slice and (typeInfo.Pointer.child == []const u8 or typeInfo.Pointer.child == []u8)) {
+                            @field(destination, field.name) = try self.parseStringArrayExpression(typeInfo.Pointer.child, depth);
                         } else {
                             std.debug.print("Type info: {any}\n", .{@typeInfo([]const u8)});
                             @panic("unexpeted type recieved - " ++ @typeName(field.type) ++ "\n");
                         }
                     },
                     .Struct => {
-                        self.parse(field.type, depth);
+                        self.parse(field.type, depth + 1);
                     },
                     else => {
                         std.debug.print("Type info: {any}\n", .{@typeInfo([]const u8)});
@@ -111,36 +111,32 @@ pub fn Ymlz(comptime Destination: type) type {
             return raw_line;
         }
 
-        fn parseStringArrayExpression(self: *Self, comptime T: type, depth: usize) !Expression {
-            const indenth_depth = INDENT_SIZE * (depth + 1);
+        fn parseStringArrayExpression(self: *Self, comptime T: type, depth: usize) ![]T {
+            const indent_depth: usize = INDENT_SIZE * (depth + 1);
 
-            const list = std.ArrayList(T).init(self.allocator);
+            var list = std.ArrayList(T).init(self.allocator);
             defer list.deinit();
 
-            var expression: Expression = undefined;
+            const raw_line = try self.readFileLine() orelse return error.EOF;
 
-            const raw_line = try self.readFileLine();
+            var split = std.mem.split(u8, raw_line, ":");
+            _ = split.next() orelse return error.NoKeyParsed;
 
-            if (raw_line) |line| {
-                const split = std.mem.split(u8, line, ":");
-                _ = split.next() orelse return error.NoKey;
+            while (true) {
+                const raw_value_line = try self.readFileLine() orelse break;
 
-                while (true) {
-                    if (line[0..indenth_depth] != "  " ** depth) {
-                        // We stumbled on new field, so we rewind this advancement and return our parsed type.
-                        try self.file.seekTo(self.seeked - line.len - 1);
-                        break;
-                    }
+                std.debug.print("Raw line: {s}\n", .{raw_value_line});
 
-                    const raw_value_line = try self.readFileLine() orelse return error.EOF;
-
-                    list.append(raw_value_line[indenth_depth + 2 ..]);
+                if (raw_value_line[0] != ' ') {
+                    // We stumbled on new field, so we rewind this advancement and return our parsed type.
+                    try self.file.seekTo(self.seeked - raw_value_line.len - 1);
+                    break;
                 }
+
+                try list.append(raw_value_line[indent_depth + 2 ..]);
             }
 
-            expression.value.Array = try list.toOwnedSlice();
-
-            return expression;
+            return try list.toOwnedSlice();
         }
 
         fn parseStringExpression(self: *Self) ![]const u8 {

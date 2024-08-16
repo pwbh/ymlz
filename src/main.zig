@@ -50,6 +50,7 @@ const Tester = struct {
     second: i64,
     name: []const u8,
     fourth: f32,
+    foods: [][]const u8,
     // foods: [][]const u8,
     // tutorial: struct {
     //     yml: Tutorial,
@@ -77,6 +78,7 @@ pub fn main() !void {
     std.debug.print("Tester: {any}\n", .{result});
     std.debug.print("Tester.name: {s}\n", .{result.name});
     std.debug.print("Tester.forth: {}\n", .{result.fourth});
+    std.debug.print("Tester.foods: {any}\n", .{result.foods});
 
     // const file = try std.fs.openFileAbsolute(yml_location, .{ .mode = .read_only });
     // defer file.close();
