@@ -51,12 +51,11 @@ const Tester = struct {
     name: []const u8,
     fourth: f32,
     foods: [][]const u8,
-    // foods: [][]const u8,
-    // tutorial: struct {
-    //     yml: Tutorial,
-    //     json: Tutorial,
-    //     xml: Tutorial,
-    // },
+    testerino: struct {
+        sd: i32,
+        k: u8,
+        l: []const u8,
+    },
 };
 
 pub fn main() !void {

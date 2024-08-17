@@ -56,16 +56,18 @@ pub fn Ymlz(comptime Destination: type) type {
         }
 
         fn parse(self: *Self, comptime T: type, depth: usize) !T {
-            const indent_depth: usize = INDENT_SIZE * (depth + 1);
+            const indent_depth: usize = INDENT_SIZE * depth;
 
             var destination: T = undefined;
 
             const destination_reflaction = @typeInfo(@TypeOf(destination));
 
             inline for (destination_reflaction.Struct.fields) |field| {
-                std.debug.print("Field name: {s}\n", .{field.name});
+                std.debug.print("Field type: {s}\n", .{field.name});
 
                 const typeInfo = @typeInfo(field.type);
+
+                // std.debug.print("Indent depth: {}",.{indent_depth})
 
                 switch (typeInfo) {
                     .Int => {
@@ -88,7 +90,7 @@ pub fn Ymlz(comptime Destination: type) type {
                         }
                     },
                     .Struct => {
-                        @field(destination, field.name) = try self.parse(field.type, indent_depth + 1);
+                        @field(destination, field.name) = try self.parseStruct(field.type, indent_depth);
                     },
                     else => {
                         std.debug.print("Type info: {any}\n", .{@typeInfo([]const u8)});
@@ -98,6 +100,11 @@ pub fn Ymlz(comptime Destination: type) type {
             }
 
             return destination;
+        }
+
+        fn parseStruct(self: *Self, comptime T: type, indent_depth: usize) !T {
+            _ = try self.readFileLine();
+            return self.parse(T, indent_depth + 1);
         }
 
         fn readFileLine(self: *Self) !?[]const u8 {
@@ -128,11 +135,9 @@ pub fn Ymlz(comptime Destination: type) type {
             while (true) {
                 const raw_value_line = try self.readFileLine() orelse break;
 
-                std.debug.print("Raw line: {s}\n", .{raw_value_line});
-
                 if (raw_value_line[0] != ' ') {
                     // We stumbled on new field, so we rewind this advancement and return our parsed type.
-                    try self.file.seekTo(self.seeked - raw_value_line.len - 1);
+                    try self.file.seekTo(self.seeked - raw_value_line.len);
                     break;
                 }
 
@@ -178,9 +183,9 @@ pub fn Ymlz(comptime Destination: type) type {
             const raw_line = try self.readFileLine();
 
             if (raw_line) |line| {
-                expression.raw = line[indent_depth..];
+                std.debug.print("indent_depth: {} line:{s}\n", .{ indent_depth, line });
 
-                std.debug.print("raw_line: {s}\n", .{expression.raw});
+                expression.raw = line[indent_depth..];
 
                 var tokens_iterator = std.mem.split(u8, expression.raw, ":");
 
@@ -195,38 +200,6 @@ pub fn Ymlz(comptime Destination: type) type {
             }
 
             return expression;
-        }
-
-        fn getFieldValue(self: *Self) !?[]const u8 {
-            var buf: [1024]u8 = undefined;
-
-            while (true) {
-                const byte = try self.file_reader.readByte();
-
-                if (byte == ' ') {
-                    continue;
-                } else {
-                    buf[0] = byte;
-                    const total = try self.file_reader.readUntilDelimiterOrEof(buf[1..], '\n');
-
-                    if (total) |t| {
-                        return buf[0 .. t.len + 1];
-                    }
-
-                    return null;
-                }
-            }
-
-            return null;
-        }
-
-        fn parseFileStart(self: *Self) !void {
-            var buf: [2]u8 = undefined;
-            _ = try self.file_reader.read(&buf);
-
-            if (!std.mem.eql(u8, "--", &buf)) {
-                return error.NotYaml;
-            }
         }
     };
 }
