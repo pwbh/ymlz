@@ -80,7 +80,7 @@ pub fn Ymlz(comptime Destination: type) type {
                         if (typeInfo.Pointer.size == .Slice and typeInfo.Pointer.child == u8) {
                             @field(destination, field.name) = try self.parseStringExpression(indent_depth);
                         } else if (typeInfo.Pointer.size == .Slice and (typeInfo.Pointer.child == []const u8 or typeInfo.Pointer.child == []u8)) {
-                            @field(destination, field.name) = try self.parseStringArrayExpression(
+                            @field(destination, field.name) = try self.parseArrayExpression(
                                 typeInfo.Pointer.child,
                                 indent_depth,
                             );
@@ -116,14 +116,13 @@ pub fn Ymlz(comptime Destination: type) type {
 
             if (raw_line) |line| {
                 self.seeked += line.len + 1;
-                // std.debug.print("Seeked by: {}\n", .{@as(i64, @intCast(line.len))});
                 try self.file.seekTo(self.seeked);
             }
 
             return raw_line;
         }
 
-        fn parseStringArrayExpression(self: *Self, comptime T: type, indent_depth: usize) ![]T {
+        fn parseArrayExpression(self: *Self, comptime T: type, indent_depth: usize) ![]T {
             var list = std.ArrayList(T).init(self.allocator);
             defer list.deinit();
 
@@ -135,12 +134,13 @@ pub fn Ymlz(comptime Destination: type) type {
             while (true) {
                 const raw_value_line = try self.readFileLine() orelse break;
 
-                if (raw_value_line[0] != ' ') {
+                if (raw_value_line[indent_depth] != ' ') {
                     // We stumbled on new field, so we rewind this advancement and return our parsed type.
                     try self.file.seekTo(self.seeked - raw_value_line.len);
                     break;
                 }
 
+                // + 2 -> ': '
                 try list.append(raw_value_line[indent_depth + 2 ..]);
             }
 
@@ -183,7 +183,7 @@ pub fn Ymlz(comptime Destination: type) type {
             const raw_line = try self.readFileLine();
 
             if (raw_line) |line| {
-                std.debug.print("indent_depth: {} line:{s}\n", .{ indent_depth, line });
+                std.debug.print("raw_line:{s}\n", .{line});
 
                 expression.raw = line[indent_depth..];
 
