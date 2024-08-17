@@ -7,7 +7,7 @@ foods:
   - Orange
   - Strawberry
   - Mango
-testerino:
+inner:
   sd: 12
   k: 2
   l: hello world

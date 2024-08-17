@@ -51,7 +51,7 @@ const Tester = struct {
     name: []const u8,
     fourth: f32,
     foods: [][]const u8,
-    testerino: struct {
+    inner: struct {
         sd: i32,
         k: u8,
         l: []const u8,
