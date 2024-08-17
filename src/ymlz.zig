@@ -19,7 +19,7 @@ const Value = union(enum) {
 const Expression = struct {
     key: []const u8,
     value: Value,
-    raw_representation: []const u8,
+    raw: []const u8,
 };
 
 pub fn Ymlz(comptime Destination: type) type {
@@ -56,6 +56,8 @@ pub fn Ymlz(comptime Destination: type) type {
         }
 
         fn parse(self: *Self, comptime T: type, depth: usize) !T {
+            const indent_depth: usize = INDENT_SIZE * (depth + 1);
+
             var destination: T = undefined;
 
             const destination_reflaction = @typeInfo(@TypeOf(destination));
@@ -67,23 +69,26 @@ pub fn Ymlz(comptime Destination: type) type {
 
                 switch (typeInfo) {
                     .Int => {
-                        @field(destination, field.name) = try self.parseIntExpression(field.type);
+                        @field(destination, field.name) = try self.parseIntExpression(field.type, indent_depth);
                     },
                     .Float => {
-                        @field(destination, field.name) = try self.parseFloatExpression(field.type);
+                        @field(destination, field.name) = try self.parseFloatExpression(field.type, indent_depth);
                     },
                     .Pointer => {
                         if (typeInfo.Pointer.size == .Slice and typeInfo.Pointer.child == u8) {
-                            @field(destination, field.name) = try self.parseStringExpression();
+                            @field(destination, field.name) = try self.parseStringExpression(indent_depth);
                         } else if (typeInfo.Pointer.size == .Slice and (typeInfo.Pointer.child == []const u8 or typeInfo.Pointer.child == []u8)) {
-                            @field(destination, field.name) = try self.parseStringArrayExpression(typeInfo.Pointer.child, depth);
+                            @field(destination, field.name) = try self.parseStringArrayExpression(
+                                typeInfo.Pointer.child,
+                                indent_depth,
+                            );
                         } else {
                             std.debug.print("Type info: {any}\n", .{@typeInfo([]const u8)});
                             @panic("unexpeted type recieved - " ++ @typeName(field.type) ++ "\n");
                         }
                     },
                     .Struct => {
-                        self.parse(field.type, depth + 1);
+                        @field(destination, field.name) = try self.parse(field.type, indent_depth + 1);
                     },
                     else => {
                         std.debug.print("Type info: {any}\n", .{@typeInfo([]const u8)});
@@ -111,9 +116,7 @@ pub fn Ymlz(comptime Destination: type) type {
             return raw_line;
         }
 
-        fn parseStringArrayExpression(self: *Self, comptime T: type, depth: usize) ![]T {
-            const indent_depth: usize = INDENT_SIZE * (depth + 1);
-
+        fn parseStringArrayExpression(self: *Self, comptime T: type, indent_depth: usize) ![]T {
             var list = std.ArrayList(T).init(self.allocator);
             defer list.deinit();
 
@@ -139,8 +142,8 @@ pub fn Ymlz(comptime Destination: type) type {
             return try list.toOwnedSlice();
         }
 
-        fn parseStringExpression(self: *Self) ![]const u8 {
-            const expression = try self.parseSimpleExpression();
+        fn parseStringExpression(self: *Self, indent_depth: usize) ![]const u8 {
+            const expression = try self.parseSimpleExpression(indent_depth);
 
             if (expression.value != .Simple) {
                 return error.ExpectedSimpleRecivedOther;
@@ -149,8 +152,8 @@ pub fn Ymlz(comptime Destination: type) type {
             return expression.value.Simple;
         }
 
-        fn parseFloatExpression(self: *Self, comptime T: type) !T {
-            const expression = try self.parseSimpleExpression();
+        fn parseFloatExpression(self: *Self, comptime T: type, indent_depth: usize) !T {
+            const expression = try self.parseSimpleExpression(indent_depth);
 
             if (expression.value != .Simple) {
                 return error.ExpectedSimpleRecivedOther;
@@ -159,8 +162,8 @@ pub fn Ymlz(comptime Destination: type) type {
             return std.fmt.parseFloat(T, expression.value.Simple);
         }
 
-        fn parseIntExpression(self: *Self, comptime T: type) !T {
-            const expression = try self.parseSimpleExpression();
+        fn parseIntExpression(self: *Self, comptime T: type, indent_depth: usize) !T {
+            const expression = try self.parseSimpleExpression(indent_depth);
 
             if (expression.value != .Simple) {
                 return error.ExpectedSimpleRecivedOther;
@@ -169,17 +172,17 @@ pub fn Ymlz(comptime Destination: type) type {
             return std.fmt.parseInt(T, expression.value.Simple, 10);
         }
 
-        fn parseSimpleExpression(self: *Self) !Expression {
+        fn parseSimpleExpression(self: *Self, indent_depth: usize) !Expression {
             var expression: Expression = undefined;
 
             const raw_line = try self.readFileLine();
 
             if (raw_line) |line| {
-                expression.raw_representation = line;
+                expression.raw = line[indent_depth..];
 
-                std.debug.print("raw_line: {s}\n", .{line});
+                std.debug.print("raw_line: {s}\n", .{expression.raw});
 
-                var tokens_iterator = std.mem.split(u8, line, ":");
+                var tokens_iterator = std.mem.split(u8, expression.raw, ":");
 
                 const key = tokens_iterator.next() orelse return error.Whatever;
                 // std.debug.print("key: {s}\n", .{key});
