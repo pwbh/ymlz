@@ -63,7 +63,7 @@ pub fn Ymlz(comptime Destination: type) type {
             const destination_reflaction = @typeInfo(@TypeOf(destination));
 
             inline for (destination_reflaction.Struct.fields) |field| {
-                std.debug.print("Field type: {s}\n", .{field.name});
+                // std.debug.print("Field type: {s}\n", .{field.name});
 
                 const typeInfo = @typeInfo(field.type);
 
@@ -103,6 +103,7 @@ pub fn Ymlz(comptime Destination: type) type {
         }
 
         fn parseStruct(self: *Self, comptime T: type, indent_depth: usize) !T {
+            std.debug.print("parseStruct: ", .{});
             _ = try self.readFileLine();
             return self.parse(T, indent_depth + 1);
         }
@@ -115,8 +116,11 @@ pub fn Ymlz(comptime Destination: type) type {
             );
 
             if (raw_line) |line| {
+                std.debug.print("readFileLine: {s}\n", .{line});
                 self.seeked += line.len + 1;
                 try self.file.seekTo(self.seeked);
+            } else {
+                std.debug.print("readFileLine: null\n", .{});
             }
 
             return raw_line;
@@ -136,7 +140,8 @@ pub fn Ymlz(comptime Destination: type) type {
 
                 if (raw_value_line[indent_depth] != ' ') {
                     // We stumbled on new field, so we rewind this advancement and return our parsed type.
-                    try self.file.seekTo(self.seeked - raw_value_line.len);
+                    // - 2 -> For some reason we need to go back twice + the length of the sentence for the '\n'
+                    try self.file.seekTo(self.seeked - raw_value_line.len - 2);
                     break;
                 }
 
@@ -183,7 +188,7 @@ pub fn Ymlz(comptime Destination: type) type {
             const raw_line = try self.readFileLine();
 
             if (raw_line) |line| {
-                std.debug.print("raw_line:{s}\n", .{line});
+                // std.debug.print("raw_line:{s}\n", .{line});
 
                 expression.raw = line[indent_depth..];
 
