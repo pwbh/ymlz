@@ -1,2 +1,13 @@
 first: 500
-second: 2
+second: -3
+name: just testing strings overhere
+fourth: 142.241
+foods:
+  - Apple
+  - Orange
+  - Strawberry
+  - Mango
+testerino:
+  sd: 12
+  k: 2
+  l: hello world
