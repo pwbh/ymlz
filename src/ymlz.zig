@@ -63,11 +63,7 @@ pub fn Ymlz(comptime Destination: type) type {
             const destination_reflaction = @typeInfo(@TypeOf(destination));
 
             inline for (destination_reflaction.Struct.fields) |field| {
-                // std.debug.print("Field type: {s}\n", .{field.name});
-
                 const typeInfo = @typeInfo(field.type);
-
-                // std.debug.print("Indent depth: {}",.{indent_depth})
 
                 switch (typeInfo) {
                     .Int => {
@@ -103,7 +99,6 @@ pub fn Ymlz(comptime Destination: type) type {
         }
 
         fn parseStruct(self: *Self, comptime T: type, indent_depth: usize) !T {
-            std.debug.print("parseStruct: ", .{});
             _ = try self.readFileLine();
             return self.parse(T, indent_depth + 1);
         }
@@ -116,11 +111,8 @@ pub fn Ymlz(comptime Destination: type) type {
             );
 
             if (raw_line) |line| {
-                std.debug.print("readFileLine: {s}\n", .{line});
                 self.seeked += line.len + 1;
                 try self.file.seekTo(self.seeked);
-            } else {
-                std.debug.print("readFileLine: null\n", .{});
             }
 
             return raw_line;
@@ -188,14 +180,11 @@ pub fn Ymlz(comptime Destination: type) type {
             const raw_line = try self.readFileLine();
 
             if (raw_line) |line| {
-                // std.debug.print("raw_line:{s}\n", .{line});
-
                 expression.raw = line[indent_depth..];
 
                 var tokens_iterator = std.mem.split(u8, expression.raw, ":");
 
                 const key = tokens_iterator.next() orelse return error.Whatever;
-                // std.debug.print("key: {s}\n", .{key});
                 const raw_value = tokens_iterator.next() orelse return error.NoValue;
 
                 expression.key = key;
