@@ -12,12 +12,12 @@ const Dictionary = struct {
 
 const Value = union(enum) {
     Simple: []const u8,
+    KV: struct { key: []const u8, value: []const u8 },
     Array: [][]const u8,
     Dictionary: Dictionary,
 };
 
 const Expression = struct {
-    key: []const u8,
     value: Value,
     raw: []const u8,
 };
@@ -41,8 +41,8 @@ pub fn Ymlz(comptime Destination: type) type {
         }
 
         pub fn deinit(self: *Self) void {
-            if (self.allocations.items) |allocation| {
-                self.allocator.free(allocation)
+            for (self.allocations.items) |allocation| {
+                self.allocator.free(allocation);
             }
         }
 
@@ -97,19 +97,22 @@ pub fn Ymlz(comptime Destination: type) type {
             inline for (destination_reflaction.Struct.fields) |field| {
                 const typeInfo = @typeInfo(field.type);
 
+                const raw_line = try self.readFileLine();
+
                 switch (typeInfo) {
                     .Int => {
-                        @field(destination, field.name) = try self.parseNumericExpression(field.type, indent_depth);
+                        @field(destination, field.name) = try self.parseNumericExpression(field.type, raw_line, indent_depth);
                     },
                     .Float => {
-                        @field(destination, field.name) = try self.parseNumericExpression(field.type, indent_depth);
+                        @field(destination, field.name) = try self.parseNumericExpression(field.type, raw_line, indent_depth);
                     },
                     .Pointer => {
                         if (typeInfo.Pointer.size == .Slice and typeInfo.Pointer.child == u8) {
-                            @field(destination, field.name) = try self.parseStringExpression(indent_depth);
+                            @field(destination, field.name) = try self.parseStringExpression(raw_line, indent_depth);
                         } else if (typeInfo.Pointer.size == .Slice and (typeInfo.Pointer.child == []const u8 or typeInfo.Pointer.child == []u8)) {
                             @field(destination, field.name) = try self.parseArrayExpression(
                                 typeInfo.Pointer.child,
+                                raw_line,
                                 indent_depth,
                             );
                         } else {
@@ -154,13 +157,13 @@ pub fn Ymlz(comptime Destination: type) type {
             return raw_line;
         }
 
-        fn parseArrayExpression(self: *Self, comptime T: type, indent_depth: usize) ![]T {
+        fn parseArrayExpression(self: *Self, comptime T: type, raw_line: ?[]const u8, indent_depth: usize) ![]T {
             var list = std.ArrayList(T).init(self.allocator);
             defer list.deinit();
 
-            const raw_line = try self.readFileLine() orelse return error.EOF;
+            const line = raw_line orelse return error.EOF;
 
-            var split = std.mem.split(u8, raw_line, ":");
+            var split = std.mem.split(u8, line, ":");
             _ = split.next() orelse return error.NoKeyParsed;
 
             while (true) {
@@ -175,15 +178,17 @@ pub fn Ymlz(comptime Destination: type) type {
                     break;
                 }
 
-                // + 2 -> ': '
-                try list.append(raw_value_line[indent_depth + 2 ..]);
+                // for now only arrays of strings
+                const value = try self.parseStringExpression(raw_value_line[indent_depth..], indent_depth);
+
+                try list.append(value);
             }
 
             return try list.toOwnedSlice();
         }
 
-        fn parseStringExpression(self: *Self, indent_depth: usize) ![]const u8 {
-            const expression = try self.parseSimpleExpression(indent_depth);
+        fn parseStringExpression(self: *Self, raw_line: ?[]const u8, indent_depth: usize) ![]const u8 {
+            const expression = try self.parseSimpleExpression(raw_line, indent_depth);
 
             if (expression.value != .Simple) {
                 return error.ExpectedSimpleRecivedOther;
@@ -192,19 +197,26 @@ pub fn Ymlz(comptime Destination: type) type {
             return expression.value.Simple;
         }
 
-        fn parseNumericExpression(self: *Self, comptime T: type, indent_depth: usize) !T {
-            const expression = try self.parseSimpleExpression(indent_depth);
+        fn getExpressionValue(self: *Self, expression: Expression) []const u8 {
+            _ = self;
 
-            if (expression.value != .Simple) {
-                return error.ExpectedSimpleRecivedOther;
+            switch (expression.value) {
+                .Simple => return expression.value.Simple,
+                .KV => return expression.value.KV.value,
+                else => @panic("Not implemeted for " ++ @typeName(@TypeOf(expression.value))),
             }
+        }
+
+        fn parseNumericExpression(self: *Self, comptime T: type, raw_line: ?[]const u8, indent_depth: usize) !T {
+            const expression = try self.parseSimpleExpression(raw_line, indent_depth);
+            const value = self.getExpressionValue(expression);
 
             switch (@typeInfo(T)) {
                 .Int => {
-                    return std.fmt.parseInt(T, expression.value.Simple, 10);
+                    return std.fmt.parseInt(T, value, 10);
                 },
                 .Float => {
-                    return std.fmt.parseFloat(T, expression.value.Simple);
+                    return std.fmt.parseFloat(T, value);
                 },
                 else => {
                     return error.UnrecognizedSimpleType;
@@ -212,24 +224,29 @@ pub fn Ymlz(comptime Destination: type) type {
             }
         }
 
-        fn parseSimpleExpression(self: *Self, indent_depth: usize) !Expression {
-            var expression: Expression = undefined;
-
-            const raw_line = try self.readFileLine();
+        fn parseSimpleExpression(self: *Self, raw_line: ?[]const u8, indent_depth: usize) !Expression {
+            _ = self;
 
             if (raw_line) |line| {
-                var tokens_iterator = std.mem.split(u8, line[indent_depth..], ":");
+                if (line[0] == '-') {
+                    return .{
+                        .value = .{ .Simple = line[2..] },
+                        .raw = line,
+                    };
+                }
 
-                const key = tokens_iterator.next() orelse return error.Whatever;
-                const raw_value = tokens_iterator.next() orelse return error.NoValue;
+                var tokens_iterator = std.mem.split(u8, line[indent_depth..], ": ");
 
-                expression.key = key;
-                expression.value = .{ .Simple = raw_value[1..] };
-            } else {
-                return error.EOF;
+                const key = tokens_iterator.next() orelse return error.KeyNotFound;
+                const value = tokens_iterator.next() orelse return error.ValueNotFound;
+
+                return .{
+                    .value = .{ .KV = .{ .key = key, .value = value } },
+                    .raw = line,
+                };
             }
 
-            return expression;
+            return error.EOF;
         }
     };
 }
