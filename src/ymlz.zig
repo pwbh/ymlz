@@ -27,6 +27,7 @@ pub fn Ymlz(comptime Destination: type) type {
         allocator: Allocator,
         file: ?std.fs.File,
         seeked: usize,
+        allocations: std.ArrayList([]const u8),
 
         const Self = @This();
 
@@ -35,13 +36,14 @@ pub fn Ymlz(comptime Destination: type) type {
                 .allocator = allocator,
                 .file = null,
                 .seeked = 0,
+                .allocations = std.ArrayList([]const u8).init(allocator),
             };
         }
 
         pub fn deinit(self: *Self) void {
-            _ = self;
-            // TODO: Need to save all references to where I allocate memory and make sure to deinit recursively from the end.
-
+            if (self.allocations.items) |allocation| {
+                self.allocator.free(allocation)
+            }
         }
 
         pub fn load(self: *Self, yml_path: []const u8) !Destination {
@@ -52,6 +54,37 @@ pub fn Ymlz(comptime Destination: type) type {
             self.file = try std.fs.openFileAbsolute(yml_path, .{ .mode = .read_only });
 
             return parse(self, Destination, 0);
+        }
+
+        fn deinitRecursively(self: *Self, st: anytype) void {
+            const destination_reflaction = @typeInfo(@TypeOf(st));
+
+            inline for (destination_reflaction.Struct.fields) |field| {
+                const typeInfo = @typeInfo(field.type);
+
+                switch (typeInfo) {
+                    .Pointer => {
+                        if (typeInfo.Pointer.size == .Slice and typeInfo.Pointer.child == u8) {
+                            const child_type_info = @typeInfo(typeInfo.Pointer.child);
+
+                            if (child_type_info == .Pointer and child_type_info.Pointer.size == .Slice) {
+                                self.deinitRecursively(@field(st, field.name));
+                            }
+
+                            const array = @field(st, field.name);
+                            std.debug.print("Freeing: {any}\n", .{array});
+                            self.allocator.free(array);
+                        } else {
+                            std.debug.print("Type info: {any}\n", .{@typeInfo([]const u8)});
+                            @panic("unexpeted type recieved - " ++ @typeName(field.type) ++ "\n");
+                        }
+                    },
+                    .Struct => {
+                        self.deinitRecursively(st);
+                    },
+                    else => continue,
+                }
+            }
         }
 
         fn parse(self: *Self, comptime T: type, depth: usize) !T {
@@ -112,6 +145,8 @@ pub fn Ymlz(comptime Destination: type) type {
             );
 
             if (raw_line) |line| {
+                try self.allocations.append(line);
+
                 self.seeked += line.len + 1;
                 try file.seekTo(self.seeked);
             }
@@ -183,9 +218,7 @@ pub fn Ymlz(comptime Destination: type) type {
             const raw_line = try self.readFileLine();
 
             if (raw_line) |line| {
-                expression.raw = line[indent_depth..];
-
-                var tokens_iterator = std.mem.split(u8, expression.raw, ":");
+                var tokens_iterator = std.mem.split(u8, line[indent_depth..], ":");
 
                 const key = tokens_iterator.next() orelse return error.Whatever;
                 const raw_value = tokens_iterator.next() orelse return error.NoValue;
