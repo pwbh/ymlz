@@ -25,19 +25,15 @@ const Expression = struct {
 pub fn Ymlz(comptime Destination: type) type {
     return struct {
         allocator: Allocator,
-        file: std.fs.File,
-        current_parsed_expression: Expression,
+        file: ?std.fs.File,
         seeked: usize,
 
         const Self = @This();
 
-        pub fn init(allocator: Allocator, yml_path: []const u8) !Self {
-            const file = try std.fs.openFileAbsolute(yml_path, .{ .mode = .read_only });
-
+        pub fn init(allocator: Allocator) !Self {
             return .{
                 .allocator = allocator,
-                .file = file,
-                .current_parsed_expression = undefined,
+                .file = null,
                 .seeked = 0,
             };
         }
@@ -45,12 +41,15 @@ pub fn Ymlz(comptime Destination: type) type {
         pub fn deinit(self: *Self) void {
             _ = self;
             // TODO: Need to save all references to where I allocate memory and make sure to deinit recursively from the end.
+
         }
 
-        pub fn load(self: *Self) !Destination {
+        pub fn load(self: *Self, yml_path: []const u8) !Destination {
             if (@typeInfo(Destination) != .Struct) {
                 @panic("ymlz only able to load yml files into structs");
             }
+
+            self.file = try std.fs.openFileAbsolute(yml_path, .{ .mode = .read_only });
 
             return parse(self, Destination, 0);
         }
@@ -67,10 +66,10 @@ pub fn Ymlz(comptime Destination: type) type {
 
                 switch (typeInfo) {
                     .Int => {
-                        @field(destination, field.name) = try self.parseIntExpression(field.type, indent_depth);
+                        @field(destination, field.name) = try self.parseNumericExpression(field.type, indent_depth);
                     },
                     .Float => {
-                        @field(destination, field.name) = try self.parseFloatExpression(field.type, indent_depth);
+                        @field(destination, field.name) = try self.parseNumericExpression(field.type, indent_depth);
                     },
                     .Pointer => {
                         if (typeInfo.Pointer.size == .Slice and typeInfo.Pointer.child == u8) {
@@ -104,7 +103,9 @@ pub fn Ymlz(comptime Destination: type) type {
         }
 
         fn readFileLine(self: *Self) !?[]const u8 {
-            const raw_line = try self.file.reader().readUntilDelimiterOrEofAlloc(
+            const file = self.file orelse return error.NoFileFound;
+
+            const raw_line = try file.reader().readUntilDelimiterOrEofAlloc(
                 self.allocator,
                 '\n',
                 std.math.maxInt(usize),
@@ -112,7 +113,7 @@ pub fn Ymlz(comptime Destination: type) type {
 
             if (raw_line) |line| {
                 self.seeked += line.len + 1;
-                try self.file.seekTo(self.seeked);
+                try file.seekTo(self.seeked);
             }
 
             return raw_line;
@@ -131,9 +132,11 @@ pub fn Ymlz(comptime Destination: type) type {
                 const raw_value_line = try self.readFileLine() orelse break;
 
                 if (raw_value_line[indent_depth] != ' ') {
+                    const file = self.file orelse return error.NoFileFound;
+
                     // We stumbled on new field, so we rewind this advancement and return our parsed type.
                     // - 2 -> For some reason we need to go back twice + the length of the sentence for the '\n'
-                    try self.file.seekTo(self.seeked - raw_value_line.len - 2);
+                    try file.seekTo(self.seeked - raw_value_line.len - 2);
                     break;
                 }
 
@@ -154,24 +157,24 @@ pub fn Ymlz(comptime Destination: type) type {
             return expression.value.Simple;
         }
 
-        fn parseFloatExpression(self: *Self, comptime T: type, indent_depth: usize) !T {
+        fn parseNumericExpression(self: *Self, comptime T: type, indent_depth: usize) !T {
             const expression = try self.parseSimpleExpression(indent_depth);
 
             if (expression.value != .Simple) {
                 return error.ExpectedSimpleRecivedOther;
             }
 
-            return std.fmt.parseFloat(T, expression.value.Simple);
-        }
-
-        fn parseIntExpression(self: *Self, comptime T: type, indent_depth: usize) !T {
-            const expression = try self.parseSimpleExpression(indent_depth);
-
-            if (expression.value != .Simple) {
-                return error.ExpectedSimpleRecivedOther;
+            switch (@typeInfo(T)) {
+                .Int => {
+                    return std.fmt.parseInt(T, expression.value.Simple, 10);
+                },
+                .Float => {
+                    return std.fmt.parseFloat(T, expression.value.Simple);
+                },
+                else => {
+                    return error.UnrecognizedSimpleType;
+                },
             }
-
-            return std.fmt.parseInt(T, expression.value.Simple, 10);
         }
 
         fn parseSimpleExpression(self: *Self, indent_depth: usize) !Expression {
