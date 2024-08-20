@@ -18,6 +18,10 @@ const Tester = struct {
         sd: i32,
         k: u8,
         l: []const u8,
+        another: struct {
+            new: f32,
+            stringed: []const u8,
+        },
     },
 };
 

@@ -11,3 +11,6 @@ inner:
   sd: 12
   k: 2
   l: hello world
+  another:
+    new: 1
+    stringed: its just a string
