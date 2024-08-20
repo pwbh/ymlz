@@ -17,7 +17,8 @@
 - Simple and straightforward to use thanks to built-in [reflections](https://ziglang.org/documentation/master/#Function-Reflection).
 - Just define a struct and start using.
 - Supports recursive struct.
-- Automatically de-inits your arrays.
+- Deinitialization is handled for you, just call `deinit()` and you are done.
+- Fields are automatically parsed based on field's type.
 
 ## How To Use
 
@@ -38,13 +39,36 @@ pub fn build(b: *std.Build) void {
 }
 ```
 
-Now in your code you may import and use ymlz:
+Now in your code you may import and use ymlz, I will be loading the following YAML file:
+
+```yml
+first: 500
+second: -3
+name: just testing strings overhere
+fourth: 142.241
+foods:
+  - Apple
+  - Orange
+  - Strawberry
+  - Mango
+inner:
+  sd: 12
+  k: 2
+  l: hello world
+  another:
+    new: 1
+    stringed: its just a string
+```
+
+In your Zig codebase:
 
 ```zig
 const std = @import("std");
 
 const Ymlz = @import("ymlz").Ymlz;
 
+// Notice how simple it is to define a struct that is one-to-one
+// to the yaml file structure
 const Tester = struct {
     first: i32,
     second: i64,
@@ -79,7 +103,10 @@ pub fn main() !void {
     const result = try ymlz.load(yml_location);
     defer ymlz.deinit(result);
 
+    // We can print and see that all the fields have been loaded
     std.debug.print("Tester: {any}\n", .{result});
+    // Lets try accessing the first field and printing it
+    std.debug.print("First: {}\n", .{result.first});
 }
 ```
 
