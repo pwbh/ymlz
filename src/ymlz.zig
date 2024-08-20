@@ -4,6 +4,7 @@ const Allocator = std.mem.Allocator;
 
 /// Count of spaces for one depth level
 const INDENT_SIZE = 2;
+const MAX_READ_SIZE = std.math.maxInt(usize);
 
 const Dictionary = struct {
     key: []const u8,
@@ -143,7 +144,7 @@ pub fn Ymlz(comptime Destination: type) type {
             const raw_line = try file.reader().readUntilDelimiterOrEofAlloc(
                 self.allocator,
                 '\n',
-                std.math.maxInt(usize),
+                MAX_READ_SIZE,
             );
 
             if (raw_line) |line| {
