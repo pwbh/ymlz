@@ -14,15 +14,15 @@ const Tester = struct {
     name: []const u8,
     fourth: f32,
     foods: [][]const u8,
-    inner: struct {
-        sd: i32,
-        k: u8,
-        l: []const u8,
-        another: struct {
-            new: f32,
-            stringed: []const u8,
-        },
-    },
+    // inner: struct {
+    //     sd: i32,
+    //     k: u8,
+    //     l: []const u8,
+    //     another: struct {
+    //         new: f32,
+    //         stringed: []const u8,
+    //     },
+    // },
 };
 
 pub fn main() !void {
@@ -46,5 +46,5 @@ pub fn main() !void {
     std.debug.print("Tester.name: {s}\n", .{result.name});
     std.debug.print("Tester.forth: {}\n", .{result.fourth});
     std.debug.print("Tester.foods: {any}\n", .{result.foods});
-    std.debug.print("Tester.inner: {any}\n", .{result.inner});
+    // std.debug.print("Tester.inner: {any}\n", .{result.inner});
 }
