@@ -68,8 +68,6 @@ pub fn Ymlz(comptime Destination: type) type {
                 inline for (destination_reflaction.Struct.fields) |field| {
                     const typeInfo = @typeInfo(field.type);
 
-                    std.debug.print("Field: {s}\n", .{field.name});
-
                     switch (typeInfo) {
                         .Pointer => {
                             if (typeInfo.Pointer.size == .Slice and typeInfo.Pointer.child != u8) {
