@@ -36,10 +36,11 @@ pub fn main() !void {
     const yml_location = args[1];
     var ymlz = try Ymlz(Tester).init(allocator);
     const result = try ymlz.load(yml_location);
-    ymlz.deinit();
+    // defer ymlz.deinit();
 
     std.debug.print("Tester: {any}\n", .{result});
     std.debug.print("Tester.name: {s}\n", .{result.name});
     std.debug.print("Tester.forth: {}\n", .{result.fourth});
     std.debug.print("Tester.foods: {any}\n", .{result.foods});
+    std.debug.print("Tester.inner: {any}\n", .{result.inner});
 }
