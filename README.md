@@ -8,6 +8,8 @@
 <p align="center">
   <a href="#key-features">Key Features</a> •
   <a href="#how-to-use">How To Use</a> •
+  <a href="#support">Support</a> •
+  <a href="#contributions">Contributions</a> •
   <a href="#license">License</a>
 </p>
 
@@ -81,6 +83,10 @@ pub fn main() !void {
     std.debug.print("Tester: {any}\n", .{result});
 }
 ```
+
+## Contributions
+
+Contributions are welcomed, while codebase is still small it should be relatively simple to get into it, if any questions or assist is needed an issue can be open and I will reach out.
 
 ## Support
 
