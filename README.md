@@ -107,6 +107,10 @@ pub fn main() !void {
     std.debug.print("Tester: {any}\n", .{result});
     // Lets try accessing the first field and printing it
     std.debug.print("First: {}\n", .{result.first});
+    // same goes for the array that we've defined `foods`
+    for (result.foods.items) |food| {
+        std.debug.print("{s}", .{food});
+    }
 }
 ```
 
