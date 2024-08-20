@@ -41,10 +41,14 @@ pub fn Ymlz(comptime Destination: type) type {
             };
         }
 
-        pub fn deinit(self: *Self) void {
+        pub fn deinit(self: *Self, st: anytype) void {
+            defer self.allocations.deinit();
+
             for (self.allocations.items) |allocation| {
                 self.allocator.free(allocation);
             }
+
+            self.deinitRecursively(st);
         }
 
         pub fn load(self: *Self, yml_path: []const u8) !Destination {
@@ -60,30 +64,30 @@ pub fn Ymlz(comptime Destination: type) type {
         fn deinitRecursively(self: *Self, st: anytype) void {
             const destination_reflaction = @typeInfo(@TypeOf(st));
 
-            inline for (destination_reflaction.Struct.fields) |field| {
-                const typeInfo = @typeInfo(field.type);
+            if (destination_reflaction == .Struct) {
+                inline for (destination_reflaction.Struct.fields) |field| {
+                    const typeInfo = @typeInfo(field.type);
 
-                switch (typeInfo) {
-                    .Pointer => {
-                        if (typeInfo.Pointer.size == .Slice and typeInfo.Pointer.child == u8) {
-                            const child_type_info = @typeInfo(typeInfo.Pointer.child);
+                    switch (typeInfo) {
+                        .Pointer => {
+                            if (typeInfo.Pointer.size == .Slice and typeInfo.Pointer.child != u8) {
+                                const child_type_info = @typeInfo(typeInfo.Pointer.child);
 
-                            if (child_type_info == .Pointer and child_type_info.Pointer.size == .Slice) {
-                                self.deinitRecursively(@field(st, field.name));
+                                if (child_type_info == .Pointer and child_type_info.Pointer.size == .Slice) {
+                                    const inner = @field(st, field.name);
+                                    self.deinitRecursively(inner);
+                                }
+
+                                const container = @field(st, field.name);
+                                self.allocator.free(container);
                             }
-
-                            const array = @field(st, field.name);
-                            std.debug.print("Freeing: {any}\n", .{array});
-                            self.allocator.free(array);
-                        } else {
-                            std.debug.print("Type info: {any}\n", .{@typeInfo([]const u8)});
-                            @panic("unexpeted type recieved - " ++ @typeName(field.type) ++ "\n");
-                        }
-                    },
-                    .Struct => {
-                        self.deinitRecursively(st);
-                    },
-                    else => continue,
+                        },
+                        .Struct => {
+                            const inner = @field(st, field.name);
+                            self.deinitRecursively(inner);
+                        },
+                        else => continue,
+                    }
                 }
             }
         }
@@ -149,7 +153,6 @@ pub fn Ymlz(comptime Destination: type) type {
 
             if (raw_line) |line| {
                 try self.allocations.append(line);
-
                 self.seeked += line.len + 1;
                 try file.seekTo(self.seeked);
             }
