@@ -100,11 +100,7 @@ pub fn Ymlz(comptime Destination: type) type {
             inline for (destination_reflaction.Struct.fields) |field| {
                 const typeInfo = @typeInfo(field.type);
 
-                const raw_line = try self.readFileLine();
-
-                if (raw_line) |line| {
-                    std.debug.print("parse: {s}\n", .{line});
-                }
+                const raw_line = try self.readFileLine() orelse break;
 
                 switch (typeInfo) {
                     .Int => {
@@ -172,20 +168,16 @@ pub fn Ymlz(comptime Destination: type) type {
             return false;
         }
 
-        fn parseArrayExpression(self: *Self, comptime T: type, raw_line: ?[]const u8, depth: usize) ![]T {
+        fn parseArrayExpression(self: *Self, comptime T: type, raw_line: []const u8, depth: usize) ![]T {
+            _ = raw_line;
+
             const indent_depth = self.getIndentDepth(depth);
 
             var list = std.ArrayList(T).init(self.allocator);
             defer list.deinit();
 
-            _ = raw_line orelse return error.EOF;
-
             while (true) {
                 const raw_value_line = try self.readFileLine() orelse break;
-
-                std.debug.print("raw_value_line: {s}\n", .{raw_value_line});
-
-                std.debug.print("raw_value_line[indent_depth]:{s}\n", .{raw_value_line[indent_depth .. indent_depth + 1]});
 
                 if (self.isNewExpression(raw_value_line, indent_depth)) {
                     const file = self.file orelse return error.NoFileFound;
@@ -194,8 +186,6 @@ pub fn Ymlz(comptime Destination: type) type {
                     try file.seekTo(self.seeked - raw_value_line.len - 2);
                     break;
                 }
-
-                std.debug.print("raw_value_line[indent_depth..]: {s}\n", .{raw_value_line[indent_depth..]});
 
                 // for now only arrays of strings
                 const value = try self.parseStringExpression(raw_value_line[indent_depth..], depth);
@@ -206,7 +196,7 @@ pub fn Ymlz(comptime Destination: type) type {
             return try list.toOwnedSlice();
         }
 
-        fn parseStringExpression(self: *Self, raw_line: ?[]const u8, depth: usize) ![]const u8 {
+        fn parseStringExpression(self: *Self, raw_line: []const u8, depth: usize) ![]const u8 {
             const expression = try self.parseSimpleExpression(raw_line, depth);
             return self.getExpressionValue(expression);
         }
@@ -221,7 +211,7 @@ pub fn Ymlz(comptime Destination: type) type {
             }
         }
 
-        fn parseNumericExpression(self: *Self, comptime T: type, raw_line: ?[]const u8, depth: usize) !T {
+        fn parseNumericExpression(self: *Self, comptime T: type, raw_line: []const u8, depth: usize) !T {
             const expression = try self.parseSimpleExpression(raw_line, depth);
             const value = self.getExpressionValue(expression);
 
@@ -238,31 +228,27 @@ pub fn Ymlz(comptime Destination: type) type {
             }
         }
 
-        fn parseSimpleExpression(self: *Self, raw_line: ?[]const u8, depth: usize) !Expression {
+        fn parseSimpleExpression(self: *Self, raw_line: []const u8, depth: usize) !Expression {
             const indent_depth = self.getIndentDepth(depth);
 
-            if (raw_line) |line| {
-                if (line[0] == '-') {
-                    return .{
-                        .value = .{ .Simple = line[2..] },
-                        .raw = line,
-                    };
-                }
-
-                var tokens_iterator = std.mem.split(u8, line[indent_depth..], ": ");
-
-                const key = tokens_iterator.next() orelse return error.KeyNotFound;
-                const value = tokens_iterator.next() orelse {
-                    return error.ValueNotFound;
-                };
-
+            if (raw_line[0] == '-') {
                 return .{
-                    .value = .{ .KV = .{ .key = key, .value = value } },
-                    .raw = line,
+                    .value = .{ .Simple = raw_line[2..] },
+                    .raw = raw_line,
                 };
             }
 
-            return error.EOF;
+            var tokens_iterator = std.mem.split(u8, raw_line[indent_depth..], ": ");
+
+            const key = tokens_iterator.next() orelse return error.KeyNotFound;
+            const value = tokens_iterator.next() orelse {
+                return error.ValueNotFound;
+            };
+
+            return .{
+                .value = .{ .KV = .{ .key = key, .value = value } },
+                .raw = raw_line,
+            };
         }
     };
 }
