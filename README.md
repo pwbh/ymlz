@@ -8,7 +8,7 @@
   <a href="#key-features">Key Features</a> •
   <a href="#how-to-use">How To Use</a> •
   <a href="#support">Support</a> •
-  <a href="#contributions">Contributions</a> •
+  <a href="#contribution">Contribution</a> •
   <a href="#license">License</a>
 </p>
 
@@ -83,9 +83,9 @@ pub fn main() !void {
 }
 ```
 
-## Contributions
+## Contribution
 
-Contributions are welcomed, while codebase is still small it should be relatively simple to get into it, if any questions or assist is needed an issue can be open and I will reach out.
+You are more then welcomed to submit a PR, ymlz codebase is still pretty small and it should be relatively simple to get into it, if you have any questions regarding the project or you just need assist starting out, open an issue.
 
 ## Support
 
