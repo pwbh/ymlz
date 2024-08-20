@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const Ymlz = @import("ymlz.zig").Ymlz;
+const Ymlz = @import("root.zig").Ymlz;
 
 const Tutorial = struct {
     name: []const u8,
