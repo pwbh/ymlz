@@ -102,6 +102,10 @@ pub fn Ymlz(comptime Destination: type) type {
 
                 const raw_line = try self.readFileLine();
 
+                if (raw_line) |line| {
+                    std.debug.print("parse: {s}\n", .{line});
+                }
+
                 switch (typeInfo) {
                     .Int => {
                         @field(destination, field.name) = try self.parseNumericExpression(field.type, raw_line, depth);
@@ -113,6 +117,7 @@ pub fn Ymlz(comptime Destination: type) type {
                         if (typeInfo.Pointer.size == .Slice and typeInfo.Pointer.child == u8) {
                             @field(destination, field.name) = try self.parseStringExpression(raw_line, depth);
                         } else if (typeInfo.Pointer.size == .Slice and (typeInfo.Pointer.child == []const u8 or typeInfo.Pointer.child == []u8)) {
+                            std.debug.print("Starting parse of array expression\n", .{});
                             @field(destination, field.name) = try self.parseArrayExpression(
                                 typeInfo.Pointer.child,
                                 raw_line,
@@ -124,7 +129,7 @@ pub fn Ymlz(comptime Destination: type) type {
                         }
                     },
                     .Struct => {
-                        @field(destination, field.name) = try self.parseStruct(field.type, depth);
+                        @field(destination, field.name) = try self.parse(field.type, depth);
                     },
                     else => {
                         std.debug.print("Type info: {any}\n", .{@typeInfo([]const u8)});
@@ -134,11 +139,6 @@ pub fn Ymlz(comptime Destination: type) type {
             }
 
             return destination;
-        }
-
-        fn parseStruct(self: *Self, comptime T: type, depth: usize) !T {
-            _ = try self.readFileLine();
-            return self.parse(T, depth + 1);
         }
 
         fn readFileLine(self: *Self) !?[]const u8 {
@@ -160,28 +160,42 @@ pub fn Ymlz(comptime Destination: type) type {
             return raw_line;
         }
 
+        fn isNewExpression(self: *Self, raw_value_line: []const u8, indent_depth: usize) bool {
+            _ = self;
+
+            for (0..indent_depth) |depth| {
+                if (raw_value_line[depth] != ' ') {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         fn parseArrayExpression(self: *Self, comptime T: type, raw_line: ?[]const u8, depth: usize) ![]T {
             const indent_depth = self.getIndentDepth(depth);
 
             var list = std.ArrayList(T).init(self.allocator);
             defer list.deinit();
 
-            const line = raw_line orelse return error.EOF;
-
-            var split = std.mem.split(u8, line, ":");
-            _ = split.next() orelse return error.NoKeyParsed;
+            _ = raw_line orelse return error.EOF;
 
             while (true) {
                 const raw_value_line = try self.readFileLine() orelse break;
 
-                if (raw_value_line[indent_depth] != ' ') {
-                    const file = self.file orelse return error.NoFileFound;
+                std.debug.print("raw_value_line: {s}\n", .{raw_value_line});
 
+                std.debug.print("raw_value_line[indent_depth]:{s}\n", .{raw_value_line[indent_depth .. indent_depth + 1]});
+
+                if (self.isNewExpression(raw_value_line, indent_depth)) {
+                    const file = self.file orelse return error.NoFileFound;
                     // We stumbled on new field, so we rewind this advancement and return our parsed type.
                     // - 2 -> For some reason we need to go back twice + the length of the sentence for the '\n'
                     try file.seekTo(self.seeked - raw_value_line.len - 2);
                     break;
                 }
+
+                std.debug.print("raw_value_line[indent_depth..]: {s}\n", .{raw_value_line[indent_depth..]});
 
                 // for now only arrays of strings
                 const value = try self.parseStringExpression(raw_value_line[indent_depth..], depth);
@@ -228,7 +242,6 @@ pub fn Ymlz(comptime Destination: type) type {
             const indent_depth = self.getIndentDepth(depth);
 
             if (raw_line) |line| {
-                std.debug.print("parseSimpleExpression: {s}\n", .{line});
                 if (line[0] == '-') {
                     return .{
                         .value = .{ .Simple = line[2..] },

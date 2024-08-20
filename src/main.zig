@@ -42,4 +42,5 @@ pub fn main() !void {
     std.debug.print("Tester.name: {s}\n", .{result.name});
     std.debug.print("Tester.forth: {}\n", .{result.fourth});
     std.debug.print("Tester.foods: {any}\n", .{result.foods});
+    std.debug.print("Tester.inner: {any}\n", .{result.inner});
 }
