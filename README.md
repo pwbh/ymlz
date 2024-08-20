@@ -1,5 +1,4 @@
 <h1 align="center">
-  <br>
   <img src="https://github-production-user-asset-6210df.s3.amazonaws.com/127856937/359537404-cf806741-1bfe-43da-972c-462a8718982a.svg?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20240820%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20240820T151806Z&X-Amz-Expires=300&X-Amz-Signature=9e04b0148e520d51c87ffdea15b67f0951cf21472d3c25e517a6ffa726ad2d2f&X-Amz-SignedHeaders=host&actor_id=127856937&key_id=0&repo_id=841125766" alt="Markdownify" width="1007">
 </h1>
 
