@@ -206,7 +206,42 @@ pub fn Ymlz(comptime Destination: type) type {
 
         fn parseStringExpression(self: *Self, raw_line: []const u8, depth: usize) ![]const u8 {
             const expression = try self.parseSimpleExpression(raw_line, depth);
-            return self.getExpressionValue(expression);
+            const value = self.getExpressionValue(expression);
+
+            switch (value[0]) {
+                '|' => {
+                    return self.parseMultilineString(depth);
+                },
+                else => return value,
+            }
+        }
+
+        fn parseMultilineString(self: *Self, depth: usize) ![]const u8 {
+            const indent_depth = self.getIndentDepth(depth);
+
+            var list = std.ArrayList(u8).init(self.allocator);
+            defer list.deinit();
+
+            while (true) {
+                const raw_value_line = try self.readFileLine() orelse break;
+
+                if (self.isNewExpression(raw_value_line, indent_depth)) {
+                    const file = self.file orelse return error.NoFileFound;
+                    // We stumbled on new field, so we rewind this advancement and return our parsed type.
+                    // - 2 -> For some reason we need to go back twice + the length of the sentence for the '\n'
+                    try file.seekTo(self.seeked - raw_value_line.len - 2);
+                    _ = list.pop();
+                    break;
+                }
+
+                const expression = try self.parseSimpleExpression(raw_value_line[indent_depth..], depth);
+                const value = self.getExpressionValue(expression);
+
+                try list.appendSlice(value);
+                try list.append('\n');
+            }
+
+            return list.toOwnedSlice();
         }
 
         fn getExpressionValue(self: *Self, expression: Expression) []const u8 {
@@ -268,8 +303,12 @@ pub fn Ymlz(comptime Destination: type) type {
             var tokens_iterator = std.mem.split(u8, raw_line[indent_depth..], ": ");
 
             const key = tokens_iterator.next() orelse return error.KeyNotFound;
+
             const value = tokens_iterator.next() orelse {
-                return error.ValueNotFound;
+                return .{
+                    .value = .{ .Simple = raw_line },
+                    .raw = raw_line,
+                };
             };
 
             return .{
@@ -395,4 +434,23 @@ test "should be able to parse booleans in all its forms" {
     try expect(result.sixth == true);
     try expect(result.seventh == false);
     try expect(result.eighth == false);
+}
+
+test "should be able to parse booleans multiline " {
+    const Subject = struct { multiline: []const u8 };
+
+    const yml_file_location = try std.fs.cwd().realpathAlloc(
+        std.testing.allocator,
+        "./resources/multilines.yml",
+    );
+    defer std.testing.allocator.free(yml_file_location);
+
+    var ymlz = try Ymlz(Subject).init(std.testing.allocator);
+    const result = try ymlz.load(yml_file_location);
+    defer ymlz.deinit(result);
+
+    try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "asdoksad\n"));
+    try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sdapdsadp\n"));
+    try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sodksaodasd\n"));
+    try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sdksdsodsokdsokd\n"));
 }
