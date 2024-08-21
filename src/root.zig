@@ -107,9 +107,7 @@ pub fn Ymlz(comptime Destination: type) type {
             inline for (destination_reflaction.Struct.fields) |field| {
                 const typeInfo = @typeInfo(field.type);
 
-                const raw_line = try self.readLine();
-
-                std.debug.print("raw_line: {s}\n", .{raw_line});
+                const raw_line = try self.readLine() orelse break;
 
                 if (raw_line.len == 0) break;
 
@@ -146,16 +144,19 @@ pub fn Ymlz(comptime Destination: type) type {
             return destination;
         }
 
-        fn readLine(self: *Self) ![]const u8 {
+        fn readLine(self: *Self) !?[]const u8 {
             const file = self.file orelse return error.NoFileFound;
-            const raw_line = try file.reader().readUntilDelimiterAlloc(
+            const raw_line = try file.reader().readUntilDelimiterOrEofAlloc(
                 self.allocator,
                 '\n',
                 MAX_READ_SIZE,
             );
-            try self.allocations.append(raw_line);
-            self.seeked += raw_line.len + 1;
-            try file.seekTo(self.seeked);
+            if (raw_line) |line| {
+                try self.allocations.append(line);
+                self.seeked += line.len + 1;
+                try file.seekTo(self.seeked);
+            }
+
             return raw_line;
         }
 
@@ -176,10 +177,9 @@ pub fn Ymlz(comptime Destination: type) type {
             defer list.deinit();
 
             while (true) {
-                const raw_value_line = try self.readLine();
+                const raw_value_line = try self.readLine() orelse break;
 
                 if (self.isNewExpression(raw_value_line, depth)) {
-                    std.debug.print("Seeking back: '{s}'\n", .{raw_value_line});
                     const file = self.file orelse return error.NoFileFound;
                     // We stumbled on new field, so we rewind this advancement and return our parsed type.
                     // - 2 -> For some reason we need to go back twice + the length of the sentence for the '\n'
@@ -217,10 +217,9 @@ pub fn Ymlz(comptime Destination: type) type {
             defer list.deinit();
 
             while (true) {
-                const raw_value_line = try self.readLine();
+                const raw_value_line = try self.readLine() orelse break;
 
                 if (self.isNewExpression(raw_value_line, depth)) {
-                    std.debug.print("Seeking back: '{s}'\n", .{raw_value_line});
                     const file = self.file orelse return error.NoFileFound;
                     // We stumbled on new field, so we rewind this advancement and return our parsed type.
                     // - 2 -> For some reason we need to go back twice + the length of the sentence for the '\n'
@@ -460,8 +459,6 @@ test "should be able to parse multiline " {
     try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sdapdsadp\n"));
     try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sodksaodasd\n"));
     try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sdksdsodsokdsokd"));
-
-    // std.debug.print("\nReceived: {s}", .{result.second_multiline});
 
     try expect(std.mem.eql(u8, result.second_multiline, "adsasdasdad  sdasadasdadasd"));
 }
