@@ -190,8 +190,7 @@ pub fn Ymlz(comptime Destination: type) type {
                 const raw_value_line = try self.readFileLine() orelse break;
 
                 if (self.isNewExpression(raw_value_line, indent_depth)) {
-                    std.debug.print("\nraw_value_line: {s} {}\n", .{ raw_value_line, raw_value_line.len });
-
+                    std.debug.print("Seeking back: '{s}'\n", .{raw_value_line});
                     const file = self.file orelse return error.NoFileFound;
                     // We stumbled on new field, so we rewind this advancement and return our parsed type.
                     // - 2 -> For some reason we need to go back twice + the length of the sentence for the '\n'
@@ -233,17 +232,17 @@ pub fn Ymlz(comptime Destination: type) type {
                 const raw_value_line = try self.readFileLine() orelse break;
 
                 if (self.isNewExpression(raw_value_line, indent_depth)) {
-                    std.debug.print("\nraw_value_line: {s} {}\n", .{ raw_value_line, raw_value_line.len });
-
+                    std.debug.print("Seeking back: '{s}'\n", .{raw_value_line});
                     const file = self.file orelse return error.NoFileFound;
                     // We stumbled on new field, so we rewind this advancement and return our parsed type.
                     // - 2 -> For some reason we need to go back twice + the length of the sentence for the '\n'
                     try file.seekBy(-@as(i64, @intCast(raw_value_line.len)));
-                    if (preserve_new_line) _ = list.pop();
+                    if (preserve_new_line)
+                        _ = list.pop();
                     break;
                 }
 
-                const expression = try self.parseSimpleExpression(raw_value_line[indent_depth..], depth);
+                const expression = try self.parseSimpleExpression(raw_value_line, depth);
                 const value = self.getExpressionValue(expression);
 
                 try list.appendSlice(value);
@@ -307,6 +306,8 @@ pub fn Ymlz(comptime Destination: type) type {
 
         fn parseSimpleExpression(self: *Self, raw_line: []const u8, depth: usize) !Expression {
             const indent_depth = self.getIndentDepth(depth);
+
+            std.debug.print("raw_line: {s}\n", .{raw_line[indent_depth..]});
 
             if (raw_line[0] == '-') {
                 return .{
@@ -472,6 +473,7 @@ test "should be able to parse booleans multiline " {
     try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sodksaodasd\n"));
     try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sdksdsodsokdsokd"));
 
-    std.debug.print("\nParsed: {any}\n", .{result.second_multiline});
-    // try expect(std.mem.eql(u8, result.second_multiline, "adsasdasdad  sdasadasdadasd"));
+    // std.debug.print("\nReceived: {s}", .{result.second_multiline});
+
+    try expect(std.mem.eql(u8, result.second_multiline, "adsasdasdad  sdasadasdadasd"));
 }
