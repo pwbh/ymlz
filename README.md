@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="https://raw.githubusercontent.com/pwbh/ymlz/fb9bdd4020a67175eb9f8168c88c20686e7fe334/imgs/logo.svg?token=A6PPCKJRGMCNLIFDSU7DILDGYTMPU" alt="ymlz" width="1007">
+  <img src="https://raw.githubusercontent.com/pwbh/ymlz/414cc4ad1a0cdfb59e1d7b62753a5330833d0b77/imgs/logo.svg?token=A6PPCKM5YGWIBJM4WFM3VCDGYTMVE" alt="ymlz" width="1007">
 </h1>
 
 <h4 align="center">Small and convenient <a href="https://en.wikipedia.org/wiki/YAML" target="_blank">YAML</a> parser</h4>
