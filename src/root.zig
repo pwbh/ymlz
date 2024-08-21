@@ -190,10 +190,12 @@ pub fn Ymlz(comptime Destination: type) type {
                 const raw_value_line = try self.readFileLine() orelse break;
 
                 if (self.isNewExpression(raw_value_line, indent_depth)) {
+                    std.debug.print("\nraw_value_line: {s} {}\n", .{ raw_value_line, raw_value_line.len });
+
                     const file = self.file orelse return error.NoFileFound;
                     // We stumbled on new field, so we rewind this advancement and return our parsed type.
                     // - 2 -> For some reason we need to go back twice + the length of the sentence for the '\n'
-                    try file.seekTo(self.seeked - raw_value_line.len - 2);
+                    try file.seekBy(-@as(i64, @intCast(raw_value_line.len)));
                     break;
                 }
 
@@ -231,11 +233,13 @@ pub fn Ymlz(comptime Destination: type) type {
                 const raw_value_line = try self.readFileLine() orelse break;
 
                 if (self.isNewExpression(raw_value_line, indent_depth)) {
+                    std.debug.print("\nraw_value_line: {s} {}\n", .{ raw_value_line, raw_value_line.len });
+
                     const file = self.file orelse return error.NoFileFound;
                     // We stumbled on new field, so we rewind this advancement and return our parsed type.
                     // - 2 -> For some reason we need to go back twice + the length of the sentence for the '\n'
-                    try file.seekTo(self.seeked - raw_value_line.len - 2);
-                    _ = list.pop();
+                    try file.seekBy(-@as(i64, @intCast(raw_value_line.len)));
+                    if (preserve_new_line) _ = list.pop();
                     break;
                 }
 
@@ -244,9 +248,8 @@ pub fn Ymlz(comptime Destination: type) type {
 
                 try list.appendSlice(value);
 
-                if (preserve_new_line) {
+                if (preserve_new_line)
                     try list.append('\n');
-                }
             }
 
             const str = try list.toOwnedSlice();
