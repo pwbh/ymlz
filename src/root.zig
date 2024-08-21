@@ -241,7 +241,11 @@ pub fn Ymlz(comptime Destination: type) type {
                 try list.append('\n');
             }
 
-            return list.toOwnedSlice();
+            const str = try list.toOwnedSlice();
+
+            try self.allocations.append(str);
+
+            return str;
         }
 
         fn getExpressionValue(self: *Self, expression: Expression) []const u8 {
