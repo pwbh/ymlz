@@ -183,7 +183,8 @@ pub fn Ymlz(comptime Destination: type) type {
                     const file = self.file orelse return error.NoFileFound;
                     // We stumbled on new field, so we rewind this advancement and return our parsed type.
                     // - 2 -> For some reason we need to go back twice + the length of the sentence for the '\n'
-                    try file.seekTo(self.seeked - raw_value_line.len - 1);
+                    self.seeked -= raw_value_line.len + 1;
+                    try file.seekTo(self.seeked);
                     break;
                 }
 
@@ -223,7 +224,8 @@ pub fn Ymlz(comptime Destination: type) type {
                     const file = self.file orelse return error.NoFileFound;
                     // We stumbled on new field, so we rewind this advancement and return our parsed type.
                     // - 2 -> For some reason we need to go back twice + the length of the sentence for the '\n'
-                    try file.seekTo(self.seeked - raw_value_line.len - 1);
+                    self.seeked -= raw_value_line.len + 1;
+                    try file.seekTo(self.seeked);
                     if (preserve_new_line)
                         _ = list.pop();
                     break;
