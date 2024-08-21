@@ -109,6 +109,8 @@ pub fn Ymlz(comptime Destination: type) type {
 
                 const raw_line = try self.readFileLine() orelse break;
 
+                if (raw_line.len == 0) break;
+
                 switch (typeInfo) {
                     .Bool => {
                         @field(destination, field.name) = try self.parseBooleanExpression(raw_line, depth);
@@ -134,7 +136,7 @@ pub fn Ymlz(comptime Destination: type) type {
                         }
                     },
                     .Struct => {
-                        @field(destination, field.name) = try self.parse(field.type, depth);
+                        @field(destination, field.name) = try self.parse(field.type, depth + 1);
                     },
                     else => {
                         std.debug.print("Type info: {any}\n", .{@typeInfo([]const u8)});
@@ -228,8 +230,6 @@ pub fn Ymlz(comptime Destination: type) type {
             while (true) {
                 const raw_value_line = try self.readFileLine() orelse break;
 
-                std.debug.print("raw_value_line: {s} -> {} - {s}\n", .{ raw_value_line, indent_depth, raw_value_line[0..indent_depth] });
-
                 if (self.isNewExpression(raw_value_line, indent_depth)) {
                     const file = self.file orelse return error.NoFileFound;
                     // We stumbled on new field, so we rewind this advancement and return our parsed type.
@@ -305,6 +305,8 @@ pub fn Ymlz(comptime Destination: type) type {
 
         fn parseSimpleExpression(self: *Self, raw_line: []const u8, depth: usize) !Expression {
             const indent_depth = self.getIndentDepth(depth);
+
+            std.debug.print("raw_line: {s} -> {s}\n", .{ raw_line, raw_line[indent_depth..] });
 
             if (raw_line[0] == '-') {
                 return .{
@@ -409,6 +411,8 @@ test "should be able to parse deeps/recursive structs" {
     var ymlz = try Ymlz(Subject).init(std.testing.allocator);
     const result = try ymlz.load(yml_file_location);
     defer ymlz.deinit(result);
+
+    std.debug.print("\nresult: {any}\n", .{result});
 
     try expect(result.inner.sd == 12);
     try expect(result.inner.k == 2);
