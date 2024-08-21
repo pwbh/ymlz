@@ -2,6 +2,8 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 
+const expect = std.testing.expect;
+
 /// Count of spaces for one depth level
 const INDENT_SIZE = 2;
 const MAX_READ_SIZE = std.math.maxInt(usize);
@@ -118,7 +120,6 @@ pub fn Ymlz(comptime Destination: type) type {
                         if (typeInfo.Pointer.size == .Slice and typeInfo.Pointer.child == u8) {
                             @field(destination, field.name) = try self.parseStringExpression(raw_line, depth);
                         } else if (typeInfo.Pointer.size == .Slice and (typeInfo.Pointer.child == []const u8 or typeInfo.Pointer.child == []u8)) {
-                            std.debug.print("Starting parse of array expression\n", .{});
                             @field(destination, field.name) = try self.parseArrayExpression(
                                 typeInfo.Pointer.child,
                                 raw_line,
@@ -255,4 +256,89 @@ pub fn Ymlz(comptime Destination: type) type {
             };
         }
     };
+}
+
+test "should be able to parse simple types" {
+    const Subject = struct {
+        first: i32,
+        second: i64,
+        name: []const u8,
+        fourth: f32,
+    };
+
+    const yml_file_location = try std.fs.cwd().realpathAlloc(
+        std.testing.allocator,
+        "./resources/super_simple.yml",
+    );
+    defer std.testing.allocator.free(yml_file_location);
+
+    var ymlz = try Ymlz(Subject).init(std.testing.allocator);
+    const result = try ymlz.load(yml_file_location);
+    defer ymlz.deinit(result);
+
+    try expect(result.first == 500);
+    try expect(result.second == -3);
+    try expect(std.mem.eql(u8, result.name, "just testing strings overhere"));
+    try expect(result.fourth == 142.241);
+}
+
+test "should be able to parse array types" {
+    const Subject = struct {
+        first: i32,
+        second: i64,
+        name: []const u8,
+        fourth: f32,
+        foods: [][]const u8,
+    };
+
+    const yml_file_location = try std.fs.cwd().realpathAlloc(
+        std.testing.allocator,
+        "./resources/super_simple.yml",
+    );
+    defer std.testing.allocator.free(yml_file_location);
+
+    var ymlz = try Ymlz(Subject).init(std.testing.allocator);
+    const result = try ymlz.load(yml_file_location);
+    defer ymlz.deinit(result);
+
+    try expect(result.foods.len == 4);
+    try expect(std.mem.eql(u8, result.foods[0], "Apple"));
+    try expect(std.mem.eql(u8, result.foods[1], "Orange"));
+    try expect(std.mem.eql(u8, result.foods[2], "Strawberry"));
+    try expect(std.mem.eql(u8, result.foods[3], "Mango"));
+}
+
+test "should be able to parse deeps/recursive structs" {
+    const Subject = struct {
+        first: i32,
+        second: i64,
+        name: []const u8,
+        fourth: f32,
+        foods: [][]const u8,
+        inner: struct {
+            sd: i32,
+            k: u8,
+            l: []const u8,
+            another: struct {
+                new: f32,
+                stringed: []const u8,
+            },
+        },
+    };
+
+    const yml_file_location = try std.fs.cwd().realpathAlloc(
+        std.testing.allocator,
+        "./resources/super_simple.yml",
+    );
+    defer std.testing.allocator.free(yml_file_location);
+
+    var ymlz = try Ymlz(Subject).init(std.testing.allocator);
+    const result = try ymlz.load(yml_file_location);
+    defer ymlz.deinit(result);
+
+    try expect(result.inner.sd == 12);
+    try expect(result.inner.k == 2);
+    try expect(std.mem.eql(u8, result.inner.l, "hello world"));
+    try expect(result.inner.another.new == 1);
+    try expect(std.mem.eql(u8, result.inner.another.stringed, "its just a string"));
 }
