@@ -210,13 +210,16 @@ pub fn Ymlz(comptime Destination: type) type {
 
             switch (value[0]) {
                 '|' => {
-                    return self.parseMultilineString(depth);
+                    return self.parseMultilineString(depth, true);
+                },
+                '>' => {
+                    return self.parseMultilineString(depth, false);
                 },
                 else => return value,
             }
         }
 
-        fn parseMultilineString(self: *Self, depth: usize) ![]const u8 {
+        fn parseMultilineString(self: *Self, depth: usize, preserve_new_line: bool) ![]const u8 {
             const indent_depth = self.getIndentDepth(depth);
 
             var list = std.ArrayList(u8).init(self.allocator);
@@ -225,12 +228,15 @@ pub fn Ymlz(comptime Destination: type) type {
             while (true) {
                 const raw_value_line = try self.readFileLine() orelse break;
 
+                std.debug.print("raw_value_line: {s} -> {} - {s}\n", .{ raw_value_line, indent_depth, raw_value_line[0..indent_depth] });
+
                 if (self.isNewExpression(raw_value_line, indent_depth)) {
                     const file = self.file orelse return error.NoFileFound;
                     // We stumbled on new field, so we rewind this advancement and return our parsed type.
                     // - 2 -> For some reason we need to go back twice + the length of the sentence for the '\n'
                     try file.seekTo(self.seeked - raw_value_line.len - 2);
                     _ = list.pop();
+                    std.debug.print("new Expression!: {s}\n", .{raw_value_line});
                     break;
                 }
 
@@ -238,7 +244,10 @@ pub fn Ymlz(comptime Destination: type) type {
                 const value = self.getExpressionValue(expression);
 
                 try list.appendSlice(value);
-                try list.append('\n');
+
+                if (preserve_new_line) {
+                    try list.append('\n');
+                }
             }
 
             const str = try list.toOwnedSlice();
@@ -441,7 +450,10 @@ test "should be able to parse booleans in all its forms" {
 }
 
 test "should be able to parse booleans multiline " {
-    const Subject = struct { multiline: []const u8 };
+    const Subject = struct {
+        multiline: []const u8,
+        second_multiline: []const u8,
+    };
 
     const yml_file_location = try std.fs.cwd().realpathAlloc(
         std.testing.allocator,
@@ -457,4 +469,6 @@ test "should be able to parse booleans multiline " {
     try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sdapdsadp\n"));
     try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sodksaodasd\n"));
     try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sdksdsodsokdsokd\n"));
+    // ?std.debug.print("\nParsed: {any}\n", .{result.second_multiline});
+    // try expect(std.mem.eql(u8, result.second_multiline, "adsasdasdad  sdasadasdadasd"));
 }
