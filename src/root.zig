@@ -110,6 +110,9 @@ pub fn Ymlz(comptime Destination: type) type {
                 const raw_line = try self.readFileLine() orelse break;
 
                 switch (typeInfo) {
+                    .Bool => {
+                        @field(destination, field.name) = try self.parseBooleanExpression(raw_line, depth);
+                    },
                     .Int => {
                         @field(destination, field.name) = try self.parseNumericExpression(field.type, raw_line, depth);
                     },
@@ -214,6 +217,25 @@ pub fn Ymlz(comptime Destination: type) type {
                 .KV => return expression.value.KV.value,
                 else => @panic("Not implemeted for " ++ @typeName(@TypeOf(expression.value))),
             }
+        }
+
+        fn parseBooleanExpression(self: *Self, raw_line: []const u8, depth: usize) !bool {
+            const expression = try self.parseSimpleExpression(raw_line, depth);
+            const value = self.getExpressionValue(expression);
+
+            const isBooleanTrue = std.mem.eql(u8, value, "True") or std.mem.eql(u8, value, "true") or std.mem.eql(u8, value, "On") or std.mem.eql(u8, value, "on");
+
+            if (isBooleanTrue) {
+                return true;
+            }
+
+            const isBooleanFalse = std.mem.eql(u8, value, "False") or std.mem.eql(u8, value, "false") or std.mem.eql(u8, value, "Off") or std.mem.eql(u8, value, "off");
+
+            if (isBooleanFalse) {
+                return false;
+            }
+
+            return error.NotBoolean;
         }
 
         fn parseNumericExpression(self: *Self, comptime T: type, raw_line: []const u8, depth: usize) !T {
@@ -341,4 +363,36 @@ test "should be able to parse deeps/recursive structs" {
     try expect(std.mem.eql(u8, result.inner.l, "hello world"));
     try expect(result.inner.another.new == 1);
     try expect(std.mem.eql(u8, result.inner.another.stringed, "its just a string"));
+}
+
+test "should be able to parse booleans in all its forms" {
+    const Subject = struct {
+        first: bool,
+        second: bool,
+        third: bool,
+        fourth: bool,
+        fifth: bool,
+        sixth: bool,
+        seventh: bool,
+        eighth: bool,
+    };
+
+    const yml_file_location = try std.fs.cwd().realpathAlloc(
+        std.testing.allocator,
+        "./resources/booleans.yml",
+    );
+    defer std.testing.allocator.free(yml_file_location);
+
+    var ymlz = try Ymlz(Subject).init(std.testing.allocator);
+    const result = try ymlz.load(yml_file_location);
+    defer ymlz.deinit(result);
+
+    try expect(result.first == true);
+    try expect(result.second == false);
+    try expect(result.third == true);
+    try expect(result.fourth == false);
+    try expect(result.fifth == true);
+    try expect(result.sixth == true);
+    try expect(result.seventh == false);
+    try expect(result.eighth == false);
 }
