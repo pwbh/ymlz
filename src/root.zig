@@ -212,10 +212,10 @@ pub fn Ymlz(comptime Destination: type) type {
 
             switch (value[0]) {
                 '|' => {
-                    return self.parseMultilineString(depth, true);
+                    return self.parseMultilineString(depth + 1, true);
                 },
                 '>' => {
-                    return self.parseMultilineString(depth, false);
+                    return self.parseMultilineString(depth + 1, false);
                 },
                 else => return value,
             }
@@ -236,7 +236,6 @@ pub fn Ymlz(comptime Destination: type) type {
                     // - 2 -> For some reason we need to go back twice + the length of the sentence for the '\n'
                     try file.seekTo(self.seeked - raw_value_line.len - 2);
                     _ = list.pop();
-                    std.debug.print("new Expression!: {s}\n", .{raw_value_line});
                     break;
                 }
 
@@ -305,8 +304,6 @@ pub fn Ymlz(comptime Destination: type) type {
 
         fn parseSimpleExpression(self: *Self, raw_line: []const u8, depth: usize) !Expression {
             const indent_depth = self.getIndentDepth(depth);
-
-            std.debug.print("raw_line: {s} -> {s}\n", .{ raw_line, raw_line[indent_depth..] });
 
             if (raw_line[0] == '-') {
                 return .{
@@ -412,8 +409,6 @@ test "should be able to parse deeps/recursive structs" {
     const result = try ymlz.load(yml_file_location);
     defer ymlz.deinit(result);
 
-    std.debug.print("\nresult: {any}\n", .{result});
-
     try expect(result.inner.sd == 12);
     try expect(result.inner.k == 2);
     try expect(std.mem.eql(u8, result.inner.l, "hello world"));
@@ -472,7 +467,8 @@ test "should be able to parse booleans multiline " {
     try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "asdoksad\n"));
     try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sdapdsadp\n"));
     try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sodksaodasd\n"));
-    try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sdksdsodsokdsokd\n"));
-    // ?std.debug.print("\nParsed: {any}\n", .{result.second_multiline});
+    try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sdksdsodsokdsokd"));
+
+    std.debug.print("\nParsed: {any}\n", .{result.second_multiline});
     // try expect(std.mem.eql(u8, result.second_multiline, "adsasdasdad  sdasadasdadasd"));
 }
