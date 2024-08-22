@@ -15,14 +15,14 @@
 ## Key Features
 
 - Simple and straightforward to use thanks to built-in [reflections](https://ziglang.org/documentation/master/#Function-Reflection).
-- Just define a struct and start using.
+- Just define a struct and accessing it's fields.
 - Supports recursive struct.
 - Deinitialization is handled for you, just call `deinit()` and you are done.
-- Fields are automatically parsed based on field's type.
+- Fields are automatically parsed based on field type.
 
 ## How To Use
 
-Easiest way to use ymlz is to fetch it via `zig fetch` and provide it the url of latest released version as the argument. See an example below.
+Easiest way to use ymlz is to fetch it via `zig fetch`, **make sure provide it the url of latest released version as the argument**. See an example below.
 
 ```bash
 $ zig fetch --save https://github.com/pwbh/ymlz/archive/refs/tags/0.0.1.tar.gz
@@ -120,10 +120,8 @@ You are more then welcomed to submit a PR, ymlz codebase is still pretty small a
 
 ## Support
 
-If you find a bug please [submit new issue](https://github.com/pwbh/ymlz/issues/new) and I will try to address it in my free time. I do however want to not that this project is used in my bigger project, so any bugs I find, I fix them without reporting them as an issue, so some issues may just be fixed without need an issue opened.
+If you find a bug please [submit new issue](https://github.com/pwbh/ymlz/issues/new) and I will try to address it in my free time. I do however want to not that this project is used in my bigger project, so any bugs I find, I fix without reporting them as an issue, so some issues that may have been reported have beeen fixed without me seeing it yet.
 
 ## License
 
-Apache License 2.0.
-
-Can be found under the [LICENSE](https://github.com/pwbh/ymlz/blob/master/LICENSE).
+Apache License 2.0. Can be found under the [LICENSE](https://github.com/pwbh/ymlz/blob/master/LICENSE).
