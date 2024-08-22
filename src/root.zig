@@ -144,6 +144,28 @@ pub fn Ymlz(comptime Destination: type) type {
             return destination;
         }
 
+        fn ignoreComment(self: *Self, line: []const u8) []const u8 {
+            _ = self;
+
+            var comment_index: usize = 0;
+
+            for (line, 0..line.len) |c, i| {
+                if (c == '#') {
+                    comment_index = i;
+                    break;
+                }
+            }
+
+            for (0..comment_index) |i| {
+                const from_end = comment_index - i;
+                if (line[from_end] != ' ') {
+                    return line[0 .. from_end - 1];
+                }
+            }
+
+            return line;
+        }
+
         fn readLine(self: *Self) !?[]const u8 {
             const file = self.file orelse return error.NoFileFound;
             const raw_line = try file.reader().readUntilDelimiterOrEofAlloc(
@@ -151,10 +173,18 @@ pub fn Ymlz(comptime Destination: type) type {
                 '\n',
                 MAX_READ_SIZE,
             );
+
             if (raw_line) |line| {
                 try self.allocations.append(line);
                 self.seeked += line.len + 1;
                 try file.seekTo(self.seeked);
+
+                if (line[0] == '#') {
+                    // Skipping comments
+                    return self.readLine();
+                }
+
+                return self.ignoreComment(line);
             }
 
             return raw_line;
