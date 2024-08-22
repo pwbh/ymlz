@@ -156,10 +156,15 @@ pub fn Ymlz(comptime Destination: type) type {
                 }
             }
 
-            for (0..comment_index) |i| {
+            if (comment_index == 0) {
+                return line;
+            }
+
+            for (1..comment_index) |i| {
                 const from_end = comment_index - i;
+
                 if (line[from_end] != ' ') {
-                    return line[0 .. from_end - 1];
+                    return line[0 .. from_end + 1];
                 }
             }
 
@@ -469,7 +474,7 @@ test "should be able to parse booleans in all its forms" {
     try expect(result.eighth == false);
 }
 
-test "should be able to parse multiline " {
+test "should be able to parse multiline" {
     const Subject = struct {
         multiline: []const u8,
         second_multiline: []const u8,

@@ -11,7 +11,7 @@ foods:
 inner:
   abcd: 12
   k: 2
-  l: hello world
+  l: hello world                 # comment somewhere
   another:
     new: 1
     stringed: its just a string
