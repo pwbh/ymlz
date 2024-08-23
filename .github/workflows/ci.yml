@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+
+jobs:
+  build-linux:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install latest Zig
+        run: |
+          wget https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz
+          tar xf zig-linux-x86_64-0.13.0.tar.xz
+          echo "$GITHUB_WORKSPACE/zig-linux-x86_64-0.13.0" >> $GITHUB_PATH
+
+      - name: Check Zig version
+        run: |
+          [ "$(zig version)" != "0.13.0" ] && exit 1 || exit 0
+
+      - name: Chekc dir
+        run: ls -ltra
+
+      - name: Build & Test
+        run: zig build test
