@@ -327,13 +327,23 @@ pub fn Ymlz(comptime Destination: type) type {
             }
         }
 
+        fn withoutQuotes(self: *Self, line: []const u8) []const u8 {
+            _ = self;
+
+            if (line[0] == '\'' or line[0] == '"' and line[line.len - 1] == '\'' or line[line.len - 1] == '"') {
+                return line[1 .. line.len - 1];
+            }
+
+            return line;
+        }
+
         fn parseSimpleExpression(self: *Self, raw_line: []const u8, depth: usize) !Expression {
             const indent_depth = self.getIndentDepth(depth);
             const line = raw_line[indent_depth..];
 
             if (line[0] == '-') {
                 return .{
-                    .value = .{ .Simple = line[2..] },
+                    .value = .{ .Simple = self.withoutQuotes(line[2..]) },
                     .raw = raw_line,
                 };
             }
@@ -344,13 +354,13 @@ pub fn Ymlz(comptime Destination: type) type {
 
             const value = tokens_iterator.next() orelse {
                 return .{
-                    .value = .{ .Simple = line },
+                    .value = .{ .Simple = self.withoutQuotes(line) },
                     .raw = raw_line,
                 };
             };
 
             return .{
-                .value = .{ .KV = .{ .key = key, .value = value } },
+                .value = .{ .KV = .{ .key = key, .value = self.withoutQuotes(value) } },
                 .raw = raw_line,
             };
         }
@@ -496,4 +506,26 @@ test "should be able to parse multiline" {
     try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sdksdsodsokdsokd"));
 
     try expect(std.mem.eql(u8, result.second_multiline, "adsasdasdad  sdasadasdadasd"));
+}
+
+test "should be able to ignore single quotes and double quotes" {
+    const Experiment = struct {
+        one: []const u8,
+        two: []const u8,
+        three: []const u8,
+    };
+
+    const yml_file_location = try std.fs.cwd().realpathAlloc(
+        std.testing.allocator,
+        "./resources/quotes.yml",
+    );
+    defer std.testing.allocator.free(yml_file_location);
+
+    var ymlz = try Ymlz(Experiment).init(std.testing.allocator);
+    const result = try ymlz.load(yml_file_location);
+    defer ymlz.deinit(result);
+
+    try expect(std.mem.containsAtLeast(u8, result.one, 1, "testing without quotes"));
+    try expect(std.mem.containsAtLeast(u8, result.two, 1, "trying to see if it will break"));
+    try expect(std.mem.containsAtLeast(u8, result.three, 1, "hello world"));
 }
