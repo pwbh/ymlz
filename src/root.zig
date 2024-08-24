@@ -128,7 +128,7 @@ pub fn Ymlz(comptime Destination: type) type {
                             @field(destination, field.name) = try self.parseArrayExpression(typeInfo.Pointer.child, depth + 1);
                         } else {
                             std.debug.print("Type info: {any}\n", .{@typeInfo([]const u8)});
-                            @panic("unexpeted type recieved - " ++ @typeName(field.type) ++ "\n");
+                            @panic("unexpected type recieved - " ++ @typeName(field.type) ++ "\n");
                         }
                     },
                     .Struct => {
@@ -136,7 +136,7 @@ pub fn Ymlz(comptime Destination: type) type {
                     },
                     else => {
                         std.debug.print("Type info: {any}\n", .{@typeInfo([]const u8)});
-                        @panic("unexpeted type recieved - " ++ @typeName(field.type) ++ "\n");
+                        @panic("unexpected type recieved - " ++ @typeName(field.type) ++ "\n");
                     },
                 }
             }
