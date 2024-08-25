@@ -15,7 +15,7 @@
 ## Key Features
 
 - Simple and straightforward to use thanks to built-in [reflections](https://ziglang.org/documentation/master/#Function-Reflection).
-- Just define a struct and accessing it's fields.
+- Just define a struct and access your struct fields.
 - Supports recursive struct.
 - Deinitialization is handled for you, just call `deinit()` and you are done.
 - Fields are automatically parsed based on field type.
