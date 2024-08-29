@@ -582,4 +582,19 @@ test "should be able to parse arrays of T" {
     defer ymlz.deinit(result);
 
     try expect(std.mem.eql(u8, result.name, "Martin D'vloper"));
+    try expect(std.mem.eql(u8, result.job, "Developer"));
+    try expect(std.mem.eql(u8, result.foods[0], "Apple"));
+    try expect(std.mem.eql(u8, result.foods[3], "Mango"));
+
+    try expect(std.mem.eql(u8, result.tutorial[0].name, "YAML Ain't Markup Language"));
+    try expect(std.mem.eql(u8, result.tutorial[0].type, "awesome"));
+    try expect(result.tutorial[0].born == 2001);
+
+    try expect(std.mem.eql(u8, result.tutorial[1].name, "JavaScript Object Notation"));
+    try expect(std.mem.eql(u8, result.tutorial[1].type, "great"));
+    try expect(result.tutorial[1].born == 2001);
+
+    try expect(std.mem.eql(u8, result.tutorial[2].name, "Extensible Markup Language"));
+    try expect(std.mem.eql(u8, result.tutorial[2].type, "good"));
+    try expect(result.tutorial[2].born == 1996);
 }
