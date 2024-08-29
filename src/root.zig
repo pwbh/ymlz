@@ -125,9 +125,10 @@ pub fn Ymlz(comptime Destination: type) type {
                         if (typeInfo.Pointer.size == .Slice and typeInfo.Pointer.child == u8) {
                             @field(destination, field.name) = try self.parseStringExpression(raw_line, depth);
                         } else if (typeInfo.Pointer.size == .Slice and (typeInfo.Pointer.child == []const u8 or typeInfo.Pointer.child == []u8)) {
+                            @field(destination, field.name) = try self.parseStringArrayExpression(typeInfo.Pointer.child, depth + 1);
+                        } else if (typeInfo.Pointer.size == .Slice and @typeInfo(typeInfo.Pointer.child) != .Pointer) {
                             @field(destination, field.name) = try self.parseArrayExpression(typeInfo.Pointer.child, depth + 1);
                         } else {
-                            std.debug.print("Type info: {any}\n", .{@typeInfo([]const u8)});
                             @panic("unexpected type recieved - " ++ @typeName(field.type) ++ "\n");
                         }
                     },
@@ -135,7 +136,6 @@ pub fn Ymlz(comptime Destination: type) type {
                         @field(destination, field.name) = try self.parse(field.type, depth + 1);
                     },
                     else => {
-                        std.debug.print("Type info: {any}\n", .{@typeInfo([]const u8)});
                         @panic("unexpected type recieved - " ++ @typeName(field.type) ++ "\n");
                     },
                 }
@@ -207,6 +207,34 @@ pub fn Ymlz(comptime Destination: type) type {
             return false;
         }
 
+        fn revert(self: *Self, len: usize) !void {
+            const file = self.file orelse return error.NoFileFound;
+            // We stumbled on new field, so we rewind this advancement and return our parsed type.
+            // - 2 -> For some reason we need to go back twice + the length of the sentence for the '\n'
+            self.seeked -= len + 1;
+            try file.seekTo(self.seeked);
+        }
+
+        fn parseStringArrayExpression(self: *Self, comptime T: type, depth: usize) ![]T {
+            var list = std.ArrayList(T).init(self.allocator);
+            defer list.deinit();
+
+            while (true) {
+                const raw_value_line = try self.readLine() orelse break;
+
+                if (self.isNewExpression(raw_value_line, depth)) {
+                    try self.revert(raw_value_line.len);
+                    break;
+                }
+
+                const result = try self.parseStringExpression(raw_value_line, depth);
+
+                try list.append(result);
+            }
+
+            return try list.toOwnedSlice();
+        }
+
         fn parseArrayExpression(self: *Self, comptime T: type, depth: usize) ![]T {
             var list = std.ArrayList(T).init(self.allocator);
             defer list.deinit();
@@ -215,18 +243,13 @@ pub fn Ymlz(comptime Destination: type) type {
                 const raw_value_line = try self.readLine() orelse break;
 
                 if (self.isNewExpression(raw_value_line, depth)) {
-                    const file = self.file orelse return error.NoFileFound;
-                    // We stumbled on new field, so we rewind this advancement and return our parsed type.
-                    // - 2 -> For some reason we need to go back twice + the length of the sentence for the '\n'
-                    self.seeked -= raw_value_line.len + 1;
-                    try file.seekTo(self.seeked);
+                    try self.revert(raw_value_line.len);
                     break;
                 }
 
-                // for now only arrays of strings
-                const value = try self.parseStringExpression(raw_value_line, depth);
+                const result = try self.parse(T, depth + 1);
 
-                try list.append(value);
+                try list.append(result);
             }
 
             return try list.toOwnedSlice();
@@ -255,11 +278,7 @@ pub fn Ymlz(comptime Destination: type) type {
                 const raw_value_line = try self.readLine() orelse break;
 
                 if (self.isNewExpression(raw_value_line, depth)) {
-                    const file = self.file orelse return error.NoFileFound;
-                    // We stumbled on new field, so we rewind this advancement and return our parsed type.
-                    // - 2 -> For some reason we need to go back twice + the length of the sentence for the '\n'
-                    self.seeked -= raw_value_line.len + 1;
-                    try file.seekTo(self.seeked);
+                    try self.revert(raw_value_line.len);
                     if (preserve_new_line)
                         _ = list.pop();
                     break;
@@ -528,4 +547,39 @@ test "should be able to ignore single quotes and double quotes" {
     try expect(std.mem.containsAtLeast(u8, result.one, 1, "testing without quotes"));
     try expect(std.mem.containsAtLeast(u8, result.two, 1, "trying to see if it will break"));
     try expect(std.mem.containsAtLeast(u8, result.three, 1, "hello world"));
+}
+
+test "should be able to parse arrays of T" {
+    const Tutorial = struct {
+        name: []const u8,
+        type: []const u8,
+        born: u64,
+    };
+
+    const Experiment = struct {
+        name: []const u8,
+        job: []const u8,
+        skill: []const u8,
+        employed: bool,
+        foods: [][]const u8,
+        languages: struct {
+            perl: []const u8,
+            python: []const u8,
+            pascal: []const u8,
+        },
+        education: []const u8,
+        tutorial: []Tutorial,
+    };
+
+    const yml_file_location = try std.fs.cwd().realpathAlloc(
+        std.testing.allocator,
+        "./resources/tutorial.yml",
+    );
+    defer std.testing.allocator.free(yml_file_location);
+
+    var ymlz = try Ymlz(Experiment).init(std.testing.allocator);
+    const result = try ymlz.load(yml_file_location);
+    defer ymlz.deinit(result);
+
+    try expect(std.mem.eql(u8, result.name, "Martin D'vloper"));
 }
