@@ -108,7 +108,14 @@ pub fn Ymlz(comptime Destination: type) type {
             inline for (destination_reflaction.Struct.fields) |field| {
                 const typeInfo = @typeInfo(field.type);
 
-                const raw_line = if (self.suspensed) |s| s else try self.readLine() orelse break;
+                var raw_line: []const u8 = undefined;
+
+                if (self.suspensed) |s| {
+                    raw_line = s;
+                    self.suspensed = null;
+                } else {
+                    raw_line = try self.readLine() orelse break;
+                }
 
                 if (raw_line.len == 0) break;
 
