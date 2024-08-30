@@ -25,7 +25,7 @@
 Easiest way to use ymlz is to fetch it via `zig fetch`, **make sure provide it the url of latest released version as the argument**. See an example below.
 
 ```bash
-zig fetch --save https://github.com/pwbh/ymlz/archive/refs/tags/0.0.3.tar.gz
+zig fetch --save https://github.com/pwbh/ymlz/archive/refs/tags/0.1.0.tar.gz
 ```
 
 Now in your `build.zig` we need to import ymlz as a module the following way:
@@ -85,7 +85,8 @@ const Tester = struct {
         },
     },
 };
-
+/// Usage
+/// zig build run -- ./file.yml
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
@@ -98,9 +99,17 @@ pub fn main() !void {
         return error.NoPathArgument;
     }
 
+
     const yml_location = args[1];
+
+    const yml_path = try std.fs.cwd().realpathAlloc(
+        allocator,
+        yml_location,
+    );
+    defer allocator.free(yml_path);
+
     var ymlz = try Ymlz(Tester).init(allocator);
-    const result = try ymlz.load(yml_location);
+    const result = try ymlz.loadFile(yml_path);
     defer ymlz.deinit(result);
 
     // We can print and see that all the fields have been loaded

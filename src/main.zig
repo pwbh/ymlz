@@ -38,8 +38,15 @@ pub fn main() !void {
     }
 
     const yml_location = args[1];
+
+    const yml_path = try std.fs.cwd().realpathAlloc(
+        allocator,
+        yml_location,
+    );
+    defer allocator.free(yml_path);
+
     var ymlz = try Ymlz(Tester).init(allocator);
-    const result = try ymlz.load(yml_location);
+    const result = try ymlz.loadFile(yml_path);
     defer ymlz.deinit(result);
 
     std.debug.print("Tester: {any}\n", .{result});

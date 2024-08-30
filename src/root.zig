@@ -54,6 +54,9 @@ pub fn Ymlz(comptime Destination: type) type {
             self.deinitRecursively(st);
         }
 
+        /// Uses absolute path for the yml file path. Can be used in conjunction
+        /// such as `std.fs.cwd()` in order to create relative paths.
+        /// See Github README for example.
         pub fn loadFile(self: *Self, yml_path: []const u8) !Destination {
             const file = try std.fs.openFileAbsolute(yml_path, .{ .mode = .read_only });
             defer file.close();
@@ -67,6 +70,7 @@ pub fn Ymlz(comptime Destination: type) type {
             return std.fs.File.read(file.*, buf);
         }
 
+        /// Allows passing a reader which will be used to parse your raw yml bytes.
         pub fn loadReader(self: *Self, reader: AnyReader) !Destination {
             if (@typeInfo(Destination) != .Struct) {
                 @panic("ymlz only able to load yml files into structs");
