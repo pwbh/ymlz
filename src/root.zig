@@ -31,7 +31,8 @@ pub fn Ymlz(comptime Destination: type) type {
         allocator: Allocator,
         reader: ?AnyReader,
         allocations: std.ArrayList([]const u8),
-        suspensed: []const u8,
+        seeked: usize,
+        suspensed: ?[]const u8,
 
         const Self = @This();
 
@@ -41,6 +42,7 @@ pub fn Ymlz(comptime Destination: type) type {
                 .reader = null,
                 .seeked = 0,
                 .allocations = std.ArrayList([]const u8).init(allocator),
+                .suspensed = null,
             };
         }
 
@@ -54,7 +56,20 @@ pub fn Ymlz(comptime Destination: type) type {
             self.deinitRecursively(st);
         }
 
-        pub fn load(self: *Self, reader: AnyReader) !Destination {
+        pub fn loadFile(self: *Self, yml_path: []const u8) !Destination {
+            const file = try std.fs.openFileAbsolute(yml_path, .{ .mode = .read_only });
+            defer file.close();
+            const file_reader = file.reader();
+            const any_reader: std.io.AnyReader = .{ .context = &file_reader.context, .readFn = fileRead };
+            return self.loadReader(any_reader);
+        }
+
+        fn fileRead(context: *const anyopaque, buf: []u8) anyerror!usize {
+            const file: *std.fs.File = @constCast(@alignCast(@ptrCast(context)));
+            return std.fs.File.read(file.*, buf);
+        }
+
+        pub fn loadReader(self: *Self, reader: AnyReader) !Destination {
             if (@typeInfo(Destination) != .Struct) {
                 @panic("ymlz only able to load yml files into structs");
             }
@@ -180,8 +195,8 @@ pub fn Ymlz(comptime Destination: type) type {
         }
 
         fn readLine(self: *Self) !?[]const u8 {
-            const file = self.file orelse return error.NoFileFound;
-            const raw_line = try file.reader().readUntilDelimiterOrEofAlloc(
+            const reader = self.reader orelse return error.NoFileFound;
+            const raw_line = try reader.readUntilDelimiterOrEofAlloc(
                 self.allocator,
                 '\n',
                 MAX_READ_SIZE,
@@ -189,8 +204,6 @@ pub fn Ymlz(comptime Destination: type) type {
 
             if (raw_line) |line| {
                 try self.allocations.append(line);
-                self.seeked += line.len + 1;
-                try file.seekTo(self.seeked);
 
                 if (line[0] == '#') {
                     // Skipping comments
@@ -409,7 +422,7 @@ test "should be able to parse simple types" {
     defer std.testing.allocator.free(yml_file_location);
 
     var ymlz = try Ymlz(Subject).init(std.testing.allocator);
-    const result = try ymlz.load(yml_file_location);
+    const result = try ymlz.loadFile(yml_file_location);
     defer ymlz.deinit(result);
 
     try expect(result.first == 500);
@@ -434,7 +447,7 @@ test "should be able to parse array types" {
     defer std.testing.allocator.free(yml_file_location);
 
     var ymlz = try Ymlz(Subject).init(std.testing.allocator);
-    const result = try ymlz.load(yml_file_location);
+    const result = try ymlz.loadFile(yml_file_location);
     defer ymlz.deinit(result);
 
     try expect(result.foods.len == 4);
@@ -469,7 +482,7 @@ test "should be able to parse deeps/recursive structs" {
     defer std.testing.allocator.free(yml_file_location);
 
     var ymlz = try Ymlz(Subject).init(std.testing.allocator);
-    const result = try ymlz.load(yml_file_location);
+    const result = try ymlz.loadFile(yml_file_location);
     defer ymlz.deinit(result);
 
     try expect(result.inner.sd == 12);
@@ -498,7 +511,7 @@ test "should be able to parse booleans in all its forms" {
     defer std.testing.allocator.free(yml_file_location);
 
     var ymlz = try Ymlz(Subject).init(std.testing.allocator);
-    const result = try ymlz.load(yml_file_location);
+    const result = try ymlz.loadFile(yml_file_location);
     defer ymlz.deinit(result);
 
     try expect(result.first == true);
@@ -524,7 +537,7 @@ test "should be able to parse multiline" {
     defer std.testing.allocator.free(yml_file_location);
 
     var ymlz = try Ymlz(Subject).init(std.testing.allocator);
-    const result = try ymlz.load(yml_file_location);
+    const result = try ymlz.loadFile(yml_file_location);
     defer ymlz.deinit(result);
 
     try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "asdoksad\n"));
@@ -549,7 +562,7 @@ test "should be able to ignore single quotes and double quotes" {
     defer std.testing.allocator.free(yml_file_location);
 
     var ymlz = try Ymlz(Experiment).init(std.testing.allocator);
-    const result = try ymlz.load(yml_file_location);
+    const result = try ymlz.loadFile(yml_file_location);
     defer ymlz.deinit(result);
 
     try expect(std.mem.containsAtLeast(u8, result.one, 1, "testing without quotes"));
@@ -586,7 +599,7 @@ test "should be able to parse arrays of T" {
     defer std.testing.allocator.free(yml_file_location);
 
     var ymlz = try Ymlz(Experiment).init(std.testing.allocator);
-    const result = try ymlz.load(yml_file_location);
+    const result = try ymlz.loadFile(yml_file_location);
     defer ymlz.deinit(result);
 
     try expect(std.mem.eql(u8, result.name, "Martin D'vloper"));
