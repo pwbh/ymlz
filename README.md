@@ -39,7 +39,7 @@ pub fn build(b: *std.Build) void {
 }
 ```
 
-Now in your code you may import and use ymlz, I will be loading the following YAML file:
+Now in your code you may import and use ymlz, I will be loading the following YAML file located in the root of my project under the name `file.yml`:
 
 ```yml
 first: 500
