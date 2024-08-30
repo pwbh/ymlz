@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const Allocator = std.mem.Allocator;
+const AnyReader = std.io.AnyReader;
 
 const expect = std.testing.expect;
 
@@ -28,16 +29,16 @@ const Expression = struct {
 pub fn Ymlz(comptime Destination: type) type {
     return struct {
         allocator: Allocator,
-        file: ?std.fs.File,
-        seeked: usize,
+        reader: ?AnyReader,
         allocations: std.ArrayList([]const u8),
+        suspensed: []const u8,
 
         const Self = @This();
 
         pub fn init(allocator: Allocator) !Self {
             return .{
                 .allocator = allocator,
-                .file = null,
+                .reader = null,
                 .seeked = 0,
                 .allocations = std.ArrayList([]const u8).init(allocator),
             };
@@ -53,12 +54,12 @@ pub fn Ymlz(comptime Destination: type) type {
             self.deinitRecursively(st);
         }
 
-        pub fn load(self: *Self, yml_path: []const u8) !Destination {
+        pub fn load(self: *Self, reader: AnyReader) !Destination {
             if (@typeInfo(Destination) != .Struct) {
                 @panic("ymlz only able to load yml files into structs");
             }
 
-            self.file = try std.fs.openFileAbsolute(yml_path, .{ .mode = .read_only });
+            self.reader = reader;
 
             return parse(self, Destination, 0);
         }
@@ -107,7 +108,7 @@ pub fn Ymlz(comptime Destination: type) type {
             inline for (destination_reflaction.Struct.fields) |field| {
                 const typeInfo = @typeInfo(field.type);
 
-                const raw_line = try self.readLine() orelse break;
+                const raw_line = if (self.suspensed) |s| s else try self.readLine() orelse break;
 
                 if (raw_line.len == 0) break;
 
@@ -223,7 +224,7 @@ pub fn Ymlz(comptime Destination: type) type {
                 const raw_value_line = try self.readLine() orelse break;
 
                 if (self.isNewExpression(raw_value_line, depth)) {
-                    try self.revert(raw_value_line.len);
+                    self.suspensed = raw_value_line;
                     break;
                 }
 
@@ -243,7 +244,7 @@ pub fn Ymlz(comptime Destination: type) type {
                 const raw_value_line = try self.readLine() orelse break;
 
                 if (self.isNewExpression(raw_value_line, depth)) {
-                    try self.revert(raw_value_line.len);
+                    self.suspensed = raw_value_line;
                     break;
                 }
 
@@ -278,7 +279,7 @@ pub fn Ymlz(comptime Destination: type) type {
                 const raw_value_line = try self.readLine() orelse break;
 
                 if (self.isNewExpression(raw_value_line, depth)) {
-                    try self.revert(raw_value_line.len);
+                    self.suspensed = raw_value_line;
                     if (preserve_new_line)
                         _ = list.pop();
                     break;
