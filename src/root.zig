@@ -31,7 +31,6 @@ pub fn Ymlz(comptime Destination: type) type {
         allocator: Allocator,
         reader: ?AnyReader,
         allocations: std.ArrayList([]const u8),
-        seeked: usize,
         suspensed: ?[]const u8,
 
         const Self = @This();
@@ -40,7 +39,6 @@ pub fn Ymlz(comptime Destination: type) type {
             return .{
                 .allocator = allocator,
                 .reader = null,
-                .seeked = 0,
                 .allocations = std.ArrayList([]const u8).init(allocator),
                 .suspensed = null,
             };
@@ -226,14 +224,6 @@ pub fn Ymlz(comptime Destination: type) type {
             }
 
             return false;
-        }
-
-        fn revert(self: *Self, len: usize) !void {
-            const file = self.file orelse return error.NoFileFound;
-            // We stumbled on new field, so we rewind this advancement and return our parsed type.
-            // - 2 -> For some reason we need to go back twice + the length of the sentence for the '\n'
-            self.seeked -= len + 1;
-            try file.seekTo(self.seeked);
         }
 
         fn parseStringArrayExpression(self: *Self, comptime T: type, depth: usize) ![]T {
