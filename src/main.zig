@@ -72,5 +72,5 @@ pub fn main() !void {
     const result = try ymlz.loadFile(yml_path);
     defer ymlz.deinit(result);
 
-    std.debug.print("Tester: {s}\n", .{result.shaders[0].programs[0].name});
+    std.debug.print("Tester: {s}\n", .{result.shaders[0].programs[0].fs.uniform_blocks[0].uniforms[0].name});
 }

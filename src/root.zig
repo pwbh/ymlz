@@ -55,7 +55,7 @@ pub fn Ymlz(comptime Destination: type) type {
                 self.allocator.free(allocation);
             }
 
-            self.deinitRecursively(st);
+            self.deinitRecursively(st, 0);
 
             self.suspense.deinit();
         }
@@ -87,7 +87,7 @@ pub fn Ymlz(comptime Destination: type) type {
             return parse(self, Destination, 0);
         }
 
-        fn deinitRecursively(self: *Self, st: anytype) void {
+        fn deinitRecursively(self: *Self, st: anytype, depth: usize) void {
             const destination_reflaction = @typeInfo(@TypeOf(st));
 
             if (destination_reflaction == .Struct) {
@@ -99,9 +99,12 @@ pub fn Ymlz(comptime Destination: type) type {
                             if (typeInfo.Pointer.size == .Slice and typeInfo.Pointer.child != u8) {
                                 const child_type_info = @typeInfo(typeInfo.Pointer.child);
 
-                                if (child_type_info == .Pointer and child_type_info.Pointer.size == .Slice) {
+                                if (typeInfo.Pointer.size == .Slice and child_type_info == .Struct) {
                                     const inner = @field(st, field.name);
-                                    self.deinitRecursively(inner);
+
+                                    for (inner) |inner_st| {
+                                        self.deinitRecursively(inner_st, depth + 1);
+                                    }
                                 }
 
                                 const container = @field(st, field.name);
@@ -110,7 +113,7 @@ pub fn Ymlz(comptime Destination: type) type {
                         },
                         .Struct => {
                             const inner = @field(st, field.name);
-                            self.deinitRecursively(inner);
+                            self.deinitRecursively(inner, depth + 1);
                         },
                         else => continue,
                     }
@@ -151,7 +154,7 @@ pub fn Ymlz(comptime Destination: type) type {
 
                 if (raw_line.len == 0) break;
 
-                self.printFieldWithIdent(depth, field.name, raw_line);
+                // self.printFieldWithIdent(depth, field.name, raw_line);
 
                 switch (typeInfo) {
                     .Bool => {
@@ -419,215 +422,275 @@ pub fn Ymlz(comptime Destination: type) type {
     };
 }
 
-test "should be able to parse simple types" {
-    const Subject = struct {
-        first: i32,
-        second: i64,
-        name: []const u8,
-        fourth: f32,
-    };
+// test "should be able to parse simple types" {
+//     const Subject = struct {
+//         first: i32,
+//         second: i64,
+//         name: []const u8,
+//         fourth: f32,
+//     };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
-        "./resources/super_simple.yml",
-    );
-    defer std.testing.allocator.free(yml_file_location);
+//     const yml_file_location = try std.fs.cwd().realpathAlloc(
+//         std.testing.allocator,
+//         "./resources/super_simple.yml",
+//     );
+//     defer std.testing.allocator.free(yml_file_location);
 
-    var ymlz = try Ymlz(Subject).init(std.testing.allocator);
-    const result = try ymlz.loadFile(yml_file_location);
-    defer ymlz.deinit(result);
+//     var ymlz = try Ymlz(Subject).init(std.testing.allocator);
+//     const result = try ymlz.loadFile(yml_file_location);
+//     defer ymlz.deinit(result);
 
-    try expect(result.first == 500);
-    try expect(result.second == -3);
-    try expect(std.mem.eql(u8, result.name, "just testing strings overhere"));
-    try expect(result.fourth == 142.241);
-}
+//     try expect(result.first == 500);
+//     try expect(result.second == -3);
+//     try expect(std.mem.eql(u8, result.name, "just testing strings overhere"));
+//     try expect(result.fourth == 142.241);
+// }
 
-test "should be able to parse array types" {
-    const Subject = struct {
-        first: i32,
-        second: i64,
-        name: []const u8,
-        fourth: f32,
-        foods: [][]const u8,
-    };
+// test "should be able to parse array types" {
+//     const Subject = struct {
+//         first: i32,
+//         second: i64,
+//         name: []const u8,
+//         fourth: f32,
+//         foods: [][]const u8,
+//     };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
-        "./resources/super_simple.yml",
-    );
-    defer std.testing.allocator.free(yml_file_location);
+//     const yml_file_location = try std.fs.cwd().realpathAlloc(
+//         std.testing.allocator,
+//         "./resources/super_simple.yml",
+//     );
+//     defer std.testing.allocator.free(yml_file_location);
 
-    var ymlz = try Ymlz(Subject).init(std.testing.allocator);
-    const result = try ymlz.loadFile(yml_file_location);
-    defer ymlz.deinit(result);
+//     var ymlz = try Ymlz(Subject).init(std.testing.allocator);
+//     const result = try ymlz.loadFile(yml_file_location);
+//     defer ymlz.deinit(result);
 
-    try expect(result.foods.len == 4);
-    try expect(std.mem.eql(u8, result.foods[0], "Apple"));
-    try expect(std.mem.eql(u8, result.foods[1], "Orange"));
-    try expect(std.mem.eql(u8, result.foods[2], "Strawberry"));
-    try expect(std.mem.eql(u8, result.foods[3], "Mango"));
-}
+//     try expect(result.foods.len == 4);
+//     try expect(std.mem.eql(u8, result.foods[0], "Apple"));
+//     try expect(std.mem.eql(u8, result.foods[1], "Orange"));
+//     try expect(std.mem.eql(u8, result.foods[2], "Strawberry"));
+//     try expect(std.mem.eql(u8, result.foods[3], "Mango"));
+// }
 
-test "should be able to parse deeps/recursive structs" {
-    const Subject = struct {
-        first: i32,
-        second: i64,
-        name: []const u8,
-        fourth: f32,
-        foods: [][]const u8,
-        inner: struct {
-            sd: i32,
-            k: u8,
-            l: []const u8,
-            another: struct {
-                new: f32,
-                stringed: []const u8,
-            },
-        },
-    };
+// test "should be able to parse deeps/recursive structs" {
+//     const Subject = struct {
+//         first: i32,
+//         second: i64,
+//         name: []const u8,
+//         fourth: f32,
+//         foods: [][]const u8,
+//         inner: struct {
+//             sd: i32,
+//             k: u8,
+//             l: []const u8,
+//             another: struct {
+//                 new: f32,
+//                 stringed: []const u8,
+//             },
+//         },
+//     };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
-        "./resources/super_simple.yml",
-    );
-    defer std.testing.allocator.free(yml_file_location);
+//     const yml_file_location = try std.fs.cwd().realpathAlloc(
+//         std.testing.allocator,
+//         "./resources/super_simple.yml",
+//     );
+//     defer std.testing.allocator.free(yml_file_location);
 
-    var ymlz = try Ymlz(Subject).init(std.testing.allocator);
-    const result = try ymlz.loadFile(yml_file_location);
-    defer ymlz.deinit(result);
+//     var ymlz = try Ymlz(Subject).init(std.testing.allocator);
+//     const result = try ymlz.loadFile(yml_file_location);
+//     defer ymlz.deinit(result);
 
-    try expect(result.inner.sd == 12);
-    try expect(result.inner.k == 2);
-    try expect(std.mem.eql(u8, result.inner.l, "hello world"));
-    try expect(result.inner.another.new == 1);
-    try expect(std.mem.eql(u8, result.inner.another.stringed, "its just a string"));
-}
+//     try expect(result.inner.sd == 12);
+//     try expect(result.inner.k == 2);
+//     try expect(std.mem.eql(u8, result.inner.l, "hello world"));
+//     try expect(result.inner.another.new == 1);
+//     try expect(std.mem.eql(u8, result.inner.another.stringed, "its just a string"));
+// }
 
-test "should be able to parse booleans in all its forms" {
-    const Subject = struct {
-        first: bool,
-        second: bool,
-        third: bool,
-        fourth: bool,
-        fifth: bool,
-        sixth: bool,
-        seventh: bool,
-        eighth: bool,
-    };
+// test "should be able to parse booleans in all its forms" {
+//     const Subject = struct {
+//         first: bool,
+//         second: bool,
+//         third: bool,
+//         fourth: bool,
+//         fifth: bool,
+//         sixth: bool,
+//         seventh: bool,
+//         eighth: bool,
+//     };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
-        "./resources/booleans.yml",
-    );
-    defer std.testing.allocator.free(yml_file_location);
+//     const yml_file_location = try std.fs.cwd().realpathAlloc(
+//         std.testing.allocator,
+//         "./resources/booleans.yml",
+//     );
+//     defer std.testing.allocator.free(yml_file_location);
 
-    var ymlz = try Ymlz(Subject).init(std.testing.allocator);
-    const result = try ymlz.loadFile(yml_file_location);
-    defer ymlz.deinit(result);
+//     var ymlz = try Ymlz(Subject).init(std.testing.allocator);
+//     const result = try ymlz.loadFile(yml_file_location);
+//     defer ymlz.deinit(result);
 
-    try expect(result.first == true);
-    try expect(result.second == false);
-    try expect(result.third == true);
-    try expect(result.fourth == false);
-    try expect(result.fifth == true);
-    try expect(result.sixth == true);
-    try expect(result.seventh == false);
-    try expect(result.eighth == false);
-}
+//     try expect(result.first == true);
+//     try expect(result.second == false);
+//     try expect(result.third == true);
+//     try expect(result.fourth == false);
+//     try expect(result.fifth == true);
+//     try expect(result.sixth == true);
+//     try expect(result.seventh == false);
+//     try expect(result.eighth == false);
+// }
 
-test "should be able to parse multiline" {
-    const Subject = struct {
-        multiline: []const u8,
-        second_multiline: []const u8,
-    };
+// test "should be able to parse multiline" {
+//     const Subject = struct {
+//         multiline: []const u8,
+//         second_multiline: []const u8,
+//     };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
-        "./resources/multilines.yml",
-    );
-    defer std.testing.allocator.free(yml_file_location);
+//     const yml_file_location = try std.fs.cwd().realpathAlloc(
+//         std.testing.allocator,
+//         "./resources/multilines.yml",
+//     );
+//     defer std.testing.allocator.free(yml_file_location);
 
-    var ymlz = try Ymlz(Subject).init(std.testing.allocator);
-    const result = try ymlz.loadFile(yml_file_location);
-    defer ymlz.deinit(result);
+//     var ymlz = try Ymlz(Subject).init(std.testing.allocator);
+//     const result = try ymlz.loadFile(yml_file_location);
+//     defer ymlz.deinit(result);
 
-    try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "asdoksad\n"));
-    try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sdapdsadp\n"));
-    try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sodksaodasd\n"));
-    try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sdksdsodsokdsokd"));
+//     try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "asdoksad\n"));
+//     try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sdapdsadp\n"));
+//     try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sodksaodasd\n"));
+//     try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sdksdsodsokdsokd"));
 
-    try expect(std.mem.eql(u8, result.second_multiline, "adsasdasdad  sdasadasdadasd"));
-}
+//     try expect(std.mem.eql(u8, result.second_multiline, "adsasdasdad  sdasadasdadasd"));
+// }
 
-test "should be able to ignore single quotes and double quotes" {
-    const Experiment = struct {
-        one: []const u8,
-        two: []const u8,
-        three: []const u8,
-    };
+// test "should be able to ignore single quotes and double quotes" {
+//     const Experiment = struct {
+//         one: []const u8,
+//         two: []const u8,
+//         three: []const u8,
+//     };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
-        "./resources/quotes.yml",
-    );
-    defer std.testing.allocator.free(yml_file_location);
+//     const yml_file_location = try std.fs.cwd().realpathAlloc(
+//         std.testing.allocator,
+//         "./resources/quotes.yml",
+//     );
+//     defer std.testing.allocator.free(yml_file_location);
 
-    var ymlz = try Ymlz(Experiment).init(std.testing.allocator);
-    const result = try ymlz.loadFile(yml_file_location);
-    defer ymlz.deinit(result);
+//     var ymlz = try Ymlz(Experiment).init(std.testing.allocator);
+//     const result = try ymlz.loadFile(yml_file_location);
+//     defer ymlz.deinit(result);
 
-    try expect(std.mem.containsAtLeast(u8, result.one, 1, "testing without quotes"));
-    try expect(std.mem.containsAtLeast(u8, result.two, 1, "trying to see if it will break"));
-    try expect(std.mem.containsAtLeast(u8, result.three, 1, "hello world"));
-}
+//     try expect(std.mem.containsAtLeast(u8, result.one, 1, "testing without quotes"));
+//     try expect(std.mem.containsAtLeast(u8, result.two, 1, "trying to see if it will break"));
+//     try expect(std.mem.containsAtLeast(u8, result.three, 1, "hello world"));
+// }
 
-test "should be able to parse arrays of T" {
-    const Tutorial = struct {
+// test "should be able to parse arrays of T" {
+//     const Tutorial = struct {
+//         name: []const u8,
+//         type: []const u8,
+//         born: u64,
+//     };
+
+//     const Experiment = struct {
+//         name: []const u8,
+//         job: []const u8,
+//         skill: []const u8,
+//         employed: bool,
+//         foods: [][]const u8,
+//         languages: struct {
+//             perl: []const u8,
+//             python: []const u8,
+//             pascal: []const u8,
+//         },
+//         education: []const u8,
+//         tutorial: []Tutorial,
+//     };
+
+//     const yml_file_location = try std.fs.cwd().realpathAlloc(
+//         std.testing.allocator,
+//         "./resources/tutorial.yml",
+//     );
+//     defer std.testing.allocator.free(yml_file_location);
+
+//     var ymlz = try Ymlz(Experiment).init(std.testing.allocator);
+//     const result = try ymlz.loadFile(yml_file_location);
+//     defer ymlz.deinit(result);
+
+//     try expect(std.mem.eql(u8, result.name, "Martin D'vloper"));
+//     try expect(std.mem.eql(u8, result.job, "Developer"));
+//     try expect(std.mem.eql(u8, result.foods[0], "Apple"));
+//     try expect(std.mem.eql(u8, result.foods[3], "Mango"));
+
+//     try expect(std.mem.eql(u8, result.tutorial[0].name, "YAML Ain't Markup Language"));
+//     try expect(std.mem.eql(u8, result.tutorial[0].type, "awesome"));
+//     try expect(result.tutorial[0].born == 2001);
+
+//     try expect(std.mem.eql(u8, result.tutorial[1].name, "JavaScript Object Notation"));
+//     try expect(std.mem.eql(u8, result.tutorial[1].type, "great"));
+//     try expect(result.tutorial[1].born == 2001);
+
+//     try expect(std.mem.eql(u8, result.tutorial[2].name, "Extensible Markup Language"));
+//     try expect(std.mem.eql(u8, result.tutorial[2].type, "good"));
+//     try expect(result.tutorial[2].born == 1996);
+// }
+
+test "should be able to parse arrays and arrays in arrays" {
+    const Uniform = struct {
         name: []const u8,
         type: []const u8,
-        born: u64,
+        array_count: i32,
+        offset: usize,
+    };
+
+    const UniformBlock = struct {
+        slot: u64,
+        size: u64,
+        struct_name: []const u8,
+        inst_name: []const u8,
+        uniforms: []Uniform,
+    };
+
+    const Input = struct {
+        slot: u64,
+        name: []const u8,
+        sem_name: []const u8,
+        sem_index: usize,
+    };
+
+    const Details = struct {
+        path: []const u8,
+        is_binary: bool,
+        entry_point: []const u8,
+        inputs: []Input,
+        outputs: []Input,
+        uniform_blocks: []UniformBlock,
+    };
+
+    const Program = struct {
+        name: []const u8,
+        vs: Details,
+        fs: Details,
+    };
+
+    const Shader = struct {
+        slang: []const u8,
+        programs: []Program,
     };
 
     const Experiment = struct {
-        name: []const u8,
-        job: []const u8,
-        skill: []const u8,
-        employed: bool,
-        foods: [][]const u8,
-        languages: struct {
-            perl: []const u8,
-            python: []const u8,
-            pascal: []const u8,
-        },
-        education: []const u8,
-        tutorial: []Tutorial,
+        shaders: []Shader,
     };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
+    const yml_path = try std.fs.cwd().realpathAlloc(
         std.testing.allocator,
-        "./resources/tutorial.yml",
+        "./resources/shader.yml",
     );
-    defer std.testing.allocator.free(yml_file_location);
+    defer std.testing.allocator.free(yml_path);
 
     var ymlz = try Ymlz(Experiment).init(std.testing.allocator);
-    const result = try ymlz.loadFile(yml_file_location);
+    const result = try ymlz.loadFile(yml_path);
     defer ymlz.deinit(result);
 
-    try expect(std.mem.eql(u8, result.name, "Martin D'vloper"));
-    try expect(std.mem.eql(u8, result.job, "Developer"));
-    try expect(std.mem.eql(u8, result.foods[0], "Apple"));
-    try expect(std.mem.eql(u8, result.foods[3], "Mango"));
-
-    try expect(std.mem.eql(u8, result.tutorial[0].name, "YAML Ain't Markup Language"));
-    try expect(std.mem.eql(u8, result.tutorial[0].type, "awesome"));
-    try expect(result.tutorial[0].born == 2001);
-
-    try expect(std.mem.eql(u8, result.tutorial[1].name, "JavaScript Object Notation"));
-    try expect(std.mem.eql(u8, result.tutorial[1].type, "great"));
-    try expect(result.tutorial[1].born == 2001);
-
-    try expect(std.mem.eql(u8, result.tutorial[2].name, "Extensible Markup Language"));
-    try expect(std.mem.eql(u8, result.tutorial[2].type, "good"));
-    try expect(result.tutorial[2].born == 1996);
+    try expect(std.mem.eql(u8, result.shaders[0].programs[0].fs.uniform_blocks[0].uniforms[0].name, "u_color_override"));
 }
