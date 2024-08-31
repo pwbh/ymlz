@@ -145,6 +145,8 @@ pub fn Ymlz(comptime Destination: type) type {
 
                 if (raw_line.len == 0) break;
 
+                // std.debug.print("{s}:\n", .{field.name});
+
                 if (typeInfo != .Optional or (typeInfo == .Optional and try self.isOptionalFieldExists(field.name, raw_line, depth))) {
                     const actualTypeInfo = if (typeInfo == .Optional) @typeInfo(typeInfo.Optional.child) else typeInfo;
 
@@ -277,11 +279,14 @@ pub fn Ymlz(comptime Destination: type) type {
             var list = std.ArrayList(T).init(self.allocator);
             defer list.deinit();
 
+            const indent_depth = self.getIndentDepth(depth);
+
             while (true) {
                 const raw_value_line = try self.readLine() orelse break;
+
                 self.suspensed = raw_value_line;
 
-                if (self.isNewExpression(raw_value_line, depth)) {
+                if (raw_value_line.len < indent_depth or self.suspensed.?[indent_depth] != '-') {
                     break;
                 }
 
