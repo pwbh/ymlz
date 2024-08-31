@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const LinkedList = @import("linked_list.zig").LinkedList;
+
 const Allocator = std.mem.Allocator;
 const AnyReader = std.io.AnyReader;
 
@@ -31,7 +33,7 @@ pub fn Ymlz(comptime Destination: type) type {
         allocator: Allocator,
         reader: ?AnyReader,
         allocations: std.ArrayList([]const u8),
-        suspensed: ?[]const u8,
+        suspensed: LinkedList([]const u8),
 
         const Self = @This();
 
@@ -40,7 +42,7 @@ pub fn Ymlz(comptime Destination: type) type {
                 .allocator = allocator,
                 .reader = null,
                 .allocations = std.ArrayList([]const u8).init(allocator),
-                .suspensed = null,
+                .suspensed = LinkedList([]const u8).init(allocator),
             };
         }
 
@@ -126,6 +128,16 @@ pub fn Ymlz(comptime Destination: type) type {
             return INDENT_SIZE * depth;
         }
 
+        fn printFieldWithIdent(self: *Self, depth: usize, field_name: []const u8, raw_line: []const u8) void {
+            _ = self;
+            // std.debug.print("printFieldWithIdent:", .{});
+            for (0..depth) |_| {
+                std.debug.print(" ", .{});
+            }
+
+            std.debug.print("{s} - {s}\n", .{ field_name, raw_line });
+        }
+
         fn parse(self: *Self, comptime T: type, depth: usize) !T {
             var destination: T = undefined;
 
@@ -136,16 +148,15 @@ pub fn Ymlz(comptime Destination: type) type {
 
                 var raw_line: []const u8 = undefined;
 
-                if (self.suspensed) |s| {
+                if (self.suspensed.popFront()) |s| {
                     raw_line = s;
-                    self.suspensed = null;
                 } else {
                     raw_line = try self.readLine() orelse break;
                 }
 
                 if (raw_line.len == 0) break;
 
-                // std.debug.print("{s}:\n", .{field.name});
+                self.printFieldWithIdent(depth, field.name, raw_line);
 
                 if (typeInfo != .Optional or (typeInfo == .Optional and try self.isOptionalFieldExists(field.name, raw_line, depth))) {
                     const actualTypeInfo = if (typeInfo == .Optional) @typeInfo(typeInfo.Optional.child) else typeInfo;
@@ -166,6 +177,7 @@ pub fn Ymlz(comptime Destination: type) type {
                             } else if (actualTypeInfo.Pointer.size == .Slice and (actualTypeInfo.Pointer.child == []const u8 or actualTypeInfo.Pointer.child == []u8)) {
                                 @field(destination, field.name) = try self.parseStringArrayExpression(actualTypeInfo.Pointer.child, depth + 1);
                             } else if (actualTypeInfo.Pointer.size == .Slice and @typeInfo(actualTypeInfo.Pointer.child) != .Pointer) {
+                                std.debug.print("Entering array: {s}\n", .{field.name});
                                 @field(destination, field.name) = try self.parseArrayExpression(actualTypeInfo.Pointer.child, depth + 1);
                             } else {
                                 @panic("unexpected type recieved - " ++ @typeName(field.type) ++ "\n");
@@ -179,7 +191,6 @@ pub fn Ymlz(comptime Destination: type) type {
                         },
                     }
                 } else {
-                    self.suspensed = raw_line;
                     @field(destination, field.name) = null;
                 }
             }
@@ -263,7 +274,7 @@ pub fn Ymlz(comptime Destination: type) type {
                 const raw_value_line = try self.readLine() orelse break;
 
                 if (self.isNewExpression(raw_value_line, depth)) {
-                    self.suspensed = raw_value_line;
+                    try self.suspensed.appendBack(raw_value_line);
                     break;
                 }
 
@@ -284,9 +295,10 @@ pub fn Ymlz(comptime Destination: type) type {
             while (true) {
                 const raw_value_line = try self.readLine() orelse break;
 
-                self.suspensed = raw_value_line;
+                try self.suspensed.appendBack(raw_value_line);
 
-                if (raw_value_line.len < indent_depth or self.suspensed.?[indent_depth] != '-') {
+                // std.debug.print("before parseArrayExpression: {s}\n", .{raw_value_line});
+                if (raw_value_line.len < indent_depth or raw_value_line[indent_depth] != '-') {
                     break;
                 }
 
@@ -321,7 +333,7 @@ pub fn Ymlz(comptime Destination: type) type {
                 const raw_value_line = try self.readLine() orelse break;
 
                 if (self.isNewExpression(raw_value_line, depth)) {
-                    self.suspensed = raw_value_line;
+                    try self.suspensed.appendBack(raw_value_line);
                     if (preserve_new_line)
                         _ = list.pop();
                     break;

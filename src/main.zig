@@ -36,6 +36,7 @@ const Details = struct {
 const Program = struct {
     name: []const u8,
     vs: Details,
+    fs: Details,
 };
 
 const Shader = struct {
