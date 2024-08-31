@@ -22,7 +22,6 @@ const Value = union(enum) {
 };
 
 const Expression = struct {
-    key: ?[]const u8,
     value: Value,
     raw: []const u8,
 };
@@ -89,10 +88,12 @@ pub fn Ymlz(comptime Destination: type) type {
                 inline for (destination_reflaction.Struct.fields) |field| {
                     const typeInfo = @typeInfo(field.type);
 
-                    switch (typeInfo) {
+                    const actualTypeInfo = if (typeInfo == .Optional) @typeInfo(typeInfo.Optional.child) else typeInfo;
+
+                    switch (actualTypeInfo) {
                         .Pointer => {
-                            if (typeInfo.Pointer.size == .Slice and typeInfo.Pointer.child != u8) {
-                                const child_type_info = @typeInfo(typeInfo.Pointer.child);
+                            if (actualTypeInfo.Pointer.size == .Slice and actualTypeInfo.Pointer.child != u8) {
+                                const child_type_info = @typeInfo(actualTypeInfo.Pointer.child);
 
                                 if (child_type_info == .Pointer and child_type_info.Pointer.size == .Slice) {
                                     const inner = @field(st, field.name);
@@ -100,7 +101,12 @@ pub fn Ymlz(comptime Destination: type) type {
                                 }
 
                                 const container = @field(st, field.name);
-                                self.allocator.free(container);
+
+                                if (typeInfo == .Optional) {
+                                    self.allocator.free(container.?);
+                                } else {
+                                    self.allocator.free(container);
+                                }
                             }
                         },
                         .Struct => {
@@ -151,12 +157,12 @@ pub fn Ymlz(comptime Destination: type) type {
                             @field(destination, field.name) = try self.parseNumericExpression(field.type, raw_line, depth);
                         },
                         .Pointer => {
-                            if (typeInfo.Pointer.size == .Slice and typeInfo.Pointer.child == u8) {
+                            if (actualTypeInfo.Pointer.size == .Slice and actualTypeInfo.Pointer.child == u8) {
                                 @field(destination, field.name) = try self.parseStringExpression(raw_line, depth);
-                            } else if (typeInfo.Pointer.size == .Slice and (typeInfo.Pointer.child == []const u8 or typeInfo.Pointer.child == []u8)) {
-                                @field(destination, field.name) = try self.parseStringArrayExpression(typeInfo.Pointer.child, depth + 1);
-                            } else if (typeInfo.Pointer.size == .Slice and @typeInfo(typeInfo.Pointer.child) != .Pointer) {
-                                @field(destination, field.name) = try self.parseArrayExpression(typeInfo.Pointer.child, depth + 1);
+                            } else if (actualTypeInfo.Pointer.size == .Slice and (actualTypeInfo.Pointer.child == []const u8 or actualTypeInfo.Pointer.child == []u8)) {
+                                @field(destination, field.name) = try self.parseStringArrayExpression(actualTypeInfo.Pointer.child, depth + 1);
+                            } else if (actualTypeInfo.Pointer.size == .Slice and @typeInfo(actualTypeInfo.Pointer.child) != .Pointer) {
+                                @field(destination, field.name) = try self.parseArrayExpression(actualTypeInfo.Pointer.child, depth + 1);
                             } else {
                                 @panic("unexpected type recieved - " ++ @typeName(field.type) ++ "\n");
                             }
@@ -239,9 +245,10 @@ pub fn Ymlz(comptime Destination: type) type {
         }
 
         fn isOptionalFieldExists(self: *Self, lookup_key: []const u8, raw_line: []const u8, depth: usize) !bool {
-            const field_in_yml = try self.parseSimpleExpression(raw_line, depth);
-            const yml_field_key = field_in_yml.key orelse return error.KeyNotFound;
-            return std.mem.eql(u8, yml_field_key, lookup_key);
+            const indent_depth = self.getIndentDepth(depth);
+            var split_iterator = std.mem.split(u8, raw_line[indent_depth..], ":");
+            const key = split_iterator.next() orelse return false;
+            return std.mem.eql(u8, key, lookup_key);
         }
 
         fn parseStringArrayExpression(self: *Self, comptime T: type, depth: usize) ![]T {
@@ -391,7 +398,6 @@ pub fn Ymlz(comptime Destination: type) type {
 
             if (line[0] == '-') {
                 return .{
-                    .key = null,
                     .value = .{ .Simple = self.withoutQuotes(line[2..]) },
                     .raw = raw_line,
                 };
@@ -403,14 +409,12 @@ pub fn Ymlz(comptime Destination: type) type {
 
             const value = tokens_iterator.next() orelse {
                 return .{
-                    .key = null, // maybe still need to pass key here
                     .value = .{ .Simple = self.withoutQuotes(line) },
                     .raw = raw_line,
                 };
             };
 
             return .{
-                .key = key,
                 .value = .{ .KV = .{ .key = key, .value = self.withoutQuotes(value) } },
                 .raw = raw_line,
             };
@@ -637,6 +641,7 @@ test "should be able to to skip optional fields if non-existent in the parsed fi
         second: ?i64,
         name: []const u8,
         fourth: f32,
+        foods: ?[][]const u8,
     };
 
     const yml_file_location = try std.fs.cwd().realpathAlloc(
@@ -653,4 +658,11 @@ test "should be able to to skip optional fields if non-existent in the parsed fi
     try expect(result.second == null);
     try expect(std.mem.eql(u8, result.name, "just testing strings overhere"));
     try expect(result.fourth == 142.241);
+
+    const foods = result.foods.?;
+    try expect(foods.len == 4);
+    try expect(std.mem.eql(u8, foods[0], "Apple"));
+    try expect(std.mem.eql(u8, foods[1], "Orange"));
+    try expect(std.mem.eql(u8, foods[2], "Strawberry"));
+    try expect(std.mem.eql(u8, foods[3], "Mango"));
 }
