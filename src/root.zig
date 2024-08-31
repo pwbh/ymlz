@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const Suspense = @import("./Suspense.zig");
+
 const Allocator = std.mem.Allocator;
 const AnyReader = std.io.AnyReader;
 
@@ -26,12 +28,14 @@ const Expression = struct {
     raw: []const u8,
 };
 
+const Suspensed = std.DoublyLinkedList([]const u8);
+
 pub fn Ymlz(comptime Destination: type) type {
     return struct {
         allocator: Allocator,
         reader: ?AnyReader,
         allocations: std.ArrayList([]const u8),
-        suspensed: ?[]const u8,
+        suspense: Suspense,
 
         const Self = @This();
 
@@ -40,7 +44,7 @@ pub fn Ymlz(comptime Destination: type) type {
                 .allocator = allocator,
                 .reader = null,
                 .allocations = std.ArrayList([]const u8).init(allocator),
-                .suspensed = null,
+                .suspense = Suspense.init(allocator),
             };
         }
 
@@ -51,7 +55,9 @@ pub fn Ymlz(comptime Destination: type) type {
                 self.allocator.free(allocation);
             }
 
-            self.deinitRecursively(st);
+            self.deinitRecursively(st, 0);
+
+            self.suspense.deinit();
         }
 
         /// Uses absolute path for the yml file path. Can be used in conjunction
@@ -81,7 +87,7 @@ pub fn Ymlz(comptime Destination: type) type {
             return parse(self, Destination, 0);
         }
 
-        fn deinitRecursively(self: *Self, st: anytype) void {
+        fn deinitRecursively(self: *Self, st: anytype, depth: usize) void {
             const destination_reflaction = @typeInfo(@TypeOf(st));
 
             if (destination_reflaction == .Struct) {
@@ -93,9 +99,12 @@ pub fn Ymlz(comptime Destination: type) type {
                             if (typeInfo.Pointer.size == .Slice and typeInfo.Pointer.child != u8) {
                                 const child_type_info = @typeInfo(typeInfo.Pointer.child);
 
-                                if (child_type_info == .Pointer and child_type_info.Pointer.size == .Slice) {
+                                if (typeInfo.Pointer.size == .Slice and child_type_info == .Struct) {
                                     const inner = @field(st, field.name);
-                                    self.deinitRecursively(inner);
+
+                                    for (inner) |inner_st| {
+                                        self.deinitRecursively(inner_st, depth + 1);
+                                    }
                                 }
 
                                 const container = @field(st, field.name);
@@ -104,7 +113,7 @@ pub fn Ymlz(comptime Destination: type) type {
                         },
                         .Struct => {
                             const inner = @field(st, field.name);
-                            self.deinitRecursively(inner);
+                            self.deinitRecursively(inner, depth + 1);
                         },
                         else => continue,
                     }
@@ -117,6 +126,16 @@ pub fn Ymlz(comptime Destination: type) type {
             return INDENT_SIZE * depth;
         }
 
+        fn printFieldWithIdent(self: *Self, depth: usize, field_name: []const u8, raw_line: []const u8) void {
+            _ = self;
+            // std.debug.print("printFieldWithIdent:", .{});
+            for (0..depth) |_| {
+                std.debug.print(" ", .{});
+            }
+
+            std.debug.print("{s}\t{s}\n", .{ field_name, raw_line });
+        }
+
         fn parse(self: *Self, comptime T: type, depth: usize) !T {
             var destination: T = undefined;
 
@@ -127,14 +146,15 @@ pub fn Ymlz(comptime Destination: type) type {
 
                 var raw_line: []const u8 = undefined;
 
-                if (self.suspensed) |s| {
+                if (self.suspense.get()) |s| {
                     raw_line = s;
-                    self.suspensed = null;
                 } else {
                     raw_line = try self.readLine() orelse break;
                 }
 
                 if (raw_line.len == 0) break;
+
+                // self.printFieldWithIdent(depth, field.name, raw_line);
 
                 switch (typeInfo) {
                     .Bool => {
@@ -238,7 +258,7 @@ pub fn Ymlz(comptime Destination: type) type {
                 const raw_value_line = try self.readLine() orelse break;
 
                 if (self.isNewExpression(raw_value_line, depth)) {
-                    self.suspensed = raw_value_line;
+                    try self.suspense.set(raw_value_line);
                     break;
                 }
 
@@ -257,8 +277,9 @@ pub fn Ymlz(comptime Destination: type) type {
             while (true) {
                 const raw_value_line = try self.readLine() orelse break;
 
+                try self.suspense.set(raw_value_line);
+
                 if (self.isNewExpression(raw_value_line, depth)) {
-                    self.suspensed = raw_value_line;
                     break;
                 }
 
@@ -293,7 +314,7 @@ pub fn Ymlz(comptime Destination: type) type {
                 const raw_value_line = try self.readLine() orelse break;
 
                 if (self.isNewExpression(raw_value_line, depth)) {
-                    self.suspensed = raw_value_line;
+                    try self.suspense.set(raw_value_line);
                     if (preserve_new_line)
                         _ = list.pop();
                     break;
@@ -612,4 +633,64 @@ test "should be able to parse arrays of T" {
     try expect(std.mem.eql(u8, result.tutorial[2].name, "Extensible Markup Language"));
     try expect(std.mem.eql(u8, result.tutorial[2].type, "good"));
     try expect(result.tutorial[2].born == 1996);
+}
+
+test "should be able to parse arrays and arrays in arrays" {
+    const Uniform = struct {
+        name: []const u8,
+        type: []const u8,
+        array_count: i32,
+        offset: usize,
+    };
+
+    const UniformBlock = struct {
+        slot: u64,
+        size: u64,
+        struct_name: []const u8,
+        inst_name: []const u8,
+        uniforms: []Uniform,
+    };
+
+    const Input = struct {
+        slot: u64,
+        name: []const u8,
+        sem_name: []const u8,
+        sem_index: usize,
+    };
+
+    const Details = struct {
+        path: []const u8,
+        is_binary: bool,
+        entry_point: []const u8,
+        inputs: []Input,
+        outputs: []Input,
+        uniform_blocks: []UniformBlock,
+    };
+
+    const Program = struct {
+        name: []const u8,
+        vs: Details,
+        fs: Details,
+    };
+
+    const Shader = struct {
+        slang: []const u8,
+        programs: []Program,
+    };
+
+    const Experiment = struct {
+        shaders: []Shader,
+    };
+
+    const yml_path = try std.fs.cwd().realpathAlloc(
+        std.testing.allocator,
+        "./resources/shader.yml",
+    );
+    defer std.testing.allocator.free(yml_path);
+
+    var ymlz = try Ymlz(Experiment).init(std.testing.allocator);
+    const result = try ymlz.loadFile(yml_path);
+    defer ymlz.deinit(result);
+
+    try expect(std.mem.eql(u8, result.shaders[0].programs[0].fs.uniform_blocks[0].uniforms[0].name, "u_color_override"));
 }
