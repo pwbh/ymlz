@@ -644,7 +644,7 @@ test "should be able to to skip optional fields if non-existent in the parsed fi
         name: []const u8,
         fourth: f32,
         foods: ?[][]const u8,
-        more_fiids: ?[][]const u8,
+        more_foods: ?[][]const u8,
     };
 
     const yml_file_location = try std.fs.cwd().realpathAlloc(
@@ -669,5 +669,5 @@ test "should be able to to skip optional fields if non-existent in the parsed fi
     try expect(std.mem.eql(u8, foods[2], "Strawberry"));
     try expect(std.mem.eql(u8, foods[3], "Mango"));
 
-    try expect(result.more_fiids == null);
+    try expect(result.more_foods == null);
 }
