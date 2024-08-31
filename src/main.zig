@@ -38,7 +38,7 @@ const Program = struct {
     vs: Details,
 };
 
-const Shader = struct { slang: []const u8, programs: struct {} };
+const Shader = struct { slang: []const u8, programs: []Program };
 
 const Experiment = struct {
     shaders: []Shader,

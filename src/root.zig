@@ -279,9 +279,9 @@ pub fn Ymlz(comptime Destination: type) type {
 
             while (true) {
                 const raw_value_line = try self.readLine() orelse break;
+                self.suspensed = raw_value_line;
 
                 if (self.isNewExpression(raw_value_line, depth)) {
-                    self.suspensed = raw_value_line;
                     break;
                 }
 
