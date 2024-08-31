@@ -1,0 +1,16 @@
+first: 500
+name: just testing strings overhere # just a comment
+fourth: 142.241
+# comment in between lines
+foods:
+  - Apple
+  - Orange
+  - Strawberry
+  - Mango
+inner:
+  abcd: 12
+  k: 2
+  l: hello world # comment somewhere
+  another:
+    new: 1
+    stringed: its just a string

@@ -2,27 +2,46 @@ const std = @import("std");
 
 const Ymlz = @import("root.zig").Ymlz;
 
-const Tutorial = struct {
+const Uniform = struct {
     name: []const u8,
     type: []const u8,
-    born: u16,
+    array_count: i32,
+    offset: usize,
 };
 
-const Tester = struct {
-    first: i32,
-    second: i64,
+const UniformBlock = struct {
+    slot: u64,
+    size: u64,
+    struct_name: []const u8,
+    inst_name: []const u8,
+    uniforms: []Uniform,
+};
+
+const Input = struct {
+    slot: u64,
     name: []const u8,
-    fourth: f32,
-    foods: [][]const u8,
-    // inner: struct {
-    //     sd: i32,
-    //     k: u8,
-    //     l: []const u8,
-    //     another: struct {
-    //         new: f32,
-    //         stringed: []const u8,
-    //     },
-    // },
+    sem_name: []const u8,
+    sem_index: usize,
+};
+
+const Details = struct {
+    path: []const u8,
+    is_binary: bool,
+    entry_point: []const u8,
+    inputs: []Input,
+    outputs: []Input,
+    uniform_blocks: []UniformBlock,
+};
+
+const Program = struct {
+    name: []const u8,
+    vs: Details,
+};
+
+const Shader = struct { slang: []const u8, programs: struct {} };
+
+const Experiment = struct {
+    shaders: []Shader,
 };
 
 pub fn main() !void {
@@ -45,13 +64,9 @@ pub fn main() !void {
     );
     defer allocator.free(yml_path);
 
-    var ymlz = try Ymlz(Tester).init(allocator);
+    var ymlz = try Ymlz(Experiment).init(allocator);
     const result = try ymlz.loadFile(yml_path);
     defer ymlz.deinit(result);
 
     std.debug.print("Tester: {any}\n", .{result});
-    std.debug.print("Tester.name: {s}\n", .{result.name});
-    std.debug.print("Tester.forth: {}\n", .{result.fourth});
-    std.debug.print("Tester.foods: {any}\n", .{result.foods});
-    // std.debug.print("Tester.inner: {any}\n", .{result.inner});
 }
