@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const Suspense = @import("./Suspense.zig");
+
 const Allocator = std.mem.Allocator;
 const AnyReader = std.io.AnyReader;
 
@@ -26,12 +28,14 @@ const Expression = struct {
     raw: []const u8,
 };
 
+const Suspensed = std.DoublyLinkedList([]const u8);
+
 pub fn Ymlz(comptime Destination: type) type {
     return struct {
         allocator: Allocator,
         reader: ?AnyReader,
         allocations: std.ArrayList([]const u8),
-        suspensed: ?[]const u8,
+        suspense: Suspense,
 
         const Self = @This();
 
@@ -40,7 +44,7 @@ pub fn Ymlz(comptime Destination: type) type {
                 .allocator = allocator,
                 .reader = null,
                 .allocations = std.ArrayList([]const u8).init(allocator),
-                .suspensed = null,
+                .suspense = Suspense.init(allocator),
             };
         }
 
@@ -52,6 +56,8 @@ pub fn Ymlz(comptime Destination: type) type {
             }
 
             self.deinitRecursively(st);
+
+            self.suspense.deinit();
         }
 
         /// Uses absolute path for the yml file path. Can be used in conjunction
@@ -117,6 +123,16 @@ pub fn Ymlz(comptime Destination: type) type {
             return INDENT_SIZE * depth;
         }
 
+        fn printFieldWithIdent(self: *Self, depth: usize, field_name: []const u8, raw_line: []const u8) void {
+            _ = self;
+            // std.debug.print("printFieldWithIdent:", .{});
+            for (0..depth) |_| {
+                std.debug.print(" ", .{});
+            }
+
+            std.debug.print("{s}\t{s}\n", .{ field_name, raw_line });
+        }
+
         fn parse(self: *Self, comptime T: type, depth: usize) !T {
             var destination: T = undefined;
 
@@ -127,14 +143,15 @@ pub fn Ymlz(comptime Destination: type) type {
 
                 var raw_line: []const u8 = undefined;
 
-                if (self.suspensed) |s| {
+                if (self.suspense.get()) |s| {
                     raw_line = s;
-                    self.suspensed = null;
                 } else {
                     raw_line = try self.readLine() orelse break;
                 }
 
                 if (raw_line.len == 0) break;
+
+                self.printFieldWithIdent(depth, field.name, raw_line);
 
                 switch (typeInfo) {
                     .Bool => {
@@ -238,7 +255,7 @@ pub fn Ymlz(comptime Destination: type) type {
                 const raw_value_line = try self.readLine() orelse break;
 
                 if (self.isNewExpression(raw_value_line, depth)) {
-                    self.suspensed = raw_value_line;
+                    try self.suspense.set(raw_value_line);
                     break;
                 }
 
@@ -257,8 +274,9 @@ pub fn Ymlz(comptime Destination: type) type {
             while (true) {
                 const raw_value_line = try self.readLine() orelse break;
 
+                try self.suspense.set(raw_value_line);
+
                 if (self.isNewExpression(raw_value_line, depth)) {
-                    self.suspensed = raw_value_line;
                     break;
                 }
 
@@ -293,7 +311,7 @@ pub fn Ymlz(comptime Destination: type) type {
                 const raw_value_line = try self.readLine() orelse break;
 
                 if (self.isNewExpression(raw_value_line, depth)) {
-                    self.suspensed = raw_value_line;
+                    try self.suspense.set(raw_value_line);
                     if (preserve_new_line)
                         _ = list.pop();
                     break;

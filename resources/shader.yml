@@ -1,0 +1,68 @@
+shaders:
+  - slang: glsl430
+    programs:
+      - name: default
+        vs:
+          path: /Users/ccuddigan/Github/delve-framework/assets/shaders/built/default/default_default_glsl430_vs.glsl
+          is_binary: false
+          entry_point: main
+          inputs:
+            - slot: 10
+              name: pos
+              sem_name: TEXCOORD
+              sem_index: 0
+            - slot: 1
+              name: color0
+              sem_name: TEXCOORD
+              sem_index: 1
+            - slot: 2
+              name: texcoord0
+              sem_name: TEXCOORD
+              sem_index: 2
+          outputs:
+            - slot: 20
+              name: color
+              sem_name: TEXCOORD
+              sem_index: 30
+            - slot: 1
+              name: uv
+              sem_name: TEXCOORD
+              sem_index: 1
+          uniform_blocks:
+            - slot: 40
+              size: 144
+              struct_name: vs_params
+              inst_name: _19
+              uniforms:
+                - name: u_projViewMatrix
+                  type: vec4
+                  array_count: 4
+                  offset: 50
+        fs:
+          path: /Users/ccuddigan/Github/delve-framework/assets/shaders/built/default/default_default_glsl430_fs.glsl
+          is_binary: false
+          entry_point: main
+          inputs:
+            - slot: 70
+              name: color
+              sem_name: TEXCOORD
+              sem_index: 80
+            - slot: 1
+              name: uv
+              sem_name: TEXCOORD
+              sem_index: 1
+          outputs:
+            - slot: 90
+              name: frag_color
+              sem_name: TEXCOORD
+              sem_index: 100
+          uniform_blocks:
+            - slot: 110
+              size: 32
+              struct_name: fs_params
+              inst_name: _36
+              uniforms:
+                - name: u_color_override
+                  type: vec4
+                  array_count: 1
+                  offset: 120
