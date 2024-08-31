@@ -103,7 +103,9 @@ pub fn Ymlz(comptime Destination: type) type {
                                 const container = @field(st, field.name);
 
                                 if (typeInfo == .Optional) {
-                                    self.allocator.free(container.?);
+                                    if (container) |c| {
+                                        self.allocator.free(c);
+                                    }
                                 } else {
                                     self.allocator.free(container);
                                 }
@@ -659,10 +661,12 @@ test "should be able to to skip optional fields if non-existent in the parsed fi
     try expect(std.mem.eql(u8, result.name, "just testing strings overhere"));
     try expect(result.fourth == 142.241);
 
-    const foods = result.foods.?;
-    try expect(foods.len == 4);
-    try expect(std.mem.eql(u8, foods[0], "Apple"));
-    try expect(std.mem.eql(u8, foods[1], "Orange"));
-    try expect(std.mem.eql(u8, foods[2], "Strawberry"));
-    try expect(std.mem.eql(u8, foods[3], "Mango"));
+    // const foods = result.foods.?;
+    // try expect(foods.len == 4);
+    // try expect(std.mem.eql(u8, foods[0], "Apple"));
+    // try expect(std.mem.eql(u8, foods[1], "Orange"));
+    // try expect(std.mem.eql(u8, foods[2], "Strawberry"));
+    // try expect(std.mem.eql(u8, foods[3], "Mango"));
+
+    try expect(result.foods == null);
 }
