@@ -46,3 +46,34 @@ test "should be able to init and deinit the stack" {
 
     try expect(std.mem.eql(u8, suspense.get().?, some_string));
 }
+
+test "should set new elements to the end but get from the start" {
+    var suspense = Self.init(std.testing.allocator);
+    defer suspense.deinit();
+
+    try suspense.set("1");
+    try suspense.set("2");
+    try suspense.set("3");
+    try suspense.set("4");
+    try suspense.set("5");
+
+    try expect(std.mem.eql(u8, suspense.get().?, "1"));
+    try expect(std.mem.eql(u8, suspense.get().?, "2"));
+    try expect(std.mem.eql(u8, suspense.get().?, "3"));
+    try expect(std.mem.eql(u8, suspense.get().?, "4"));
+    try expect(std.mem.eql(u8, suspense.get().?, "5"));
+}
+
+test "should return null when empty" {
+    var suspense = Self.init(std.testing.allocator);
+    defer suspense.deinit();
+
+    try suspense.set("1");
+    try suspense.set("2");
+
+    try expect(std.mem.eql(u8, suspense.get().?, "1"));
+    try expect(std.mem.eql(u8, suspense.get().?, "2"));
+    try expect(suspense.get() == null);
+    try expect(suspense.get() == null);
+    try expect(suspense.get() == null);
+}
