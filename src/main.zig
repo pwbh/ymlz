@@ -2,6 +2,14 @@ const std = @import("std");
 
 const Ymlz = @import("root.zig").Ymlz;
 
+const Image = struct {
+    slot: u64,
+    name: []const u8,
+    multisampled: bool,
+    type: []const u8,
+    sample_type: []const u8,
+};
+
 const Uniform = struct {
     name: []const u8,
     type: []const u8,
@@ -31,6 +39,7 @@ const Details = struct {
     inputs: []Input,
     outputs: []Input,
     uniform_blocks: []UniformBlock,
+    images: ?[]Image,
 };
 
 const Program = struct {

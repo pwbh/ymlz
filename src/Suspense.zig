@@ -1,39 +1,79 @@
 const Self = @This();
 
 const std = @import("std");
+const expect = std.testing.expect;
 
-arr: std.ArrayList([]const u8),
-current_index: usize,
+const Stack = std.DoublyLinkedList([]const u8);
+
+allocator: std.mem.Allocator,
+stack: Stack,
 
 pub fn init(allocator: std.mem.Allocator) Self {
     return .{
-        .arr = std.ArrayList([]const u8).init(allocator),
-        .current_index = 0,
+        .stack = .{},
+        .allocator = allocator,
     };
 }
 
 pub fn deinit(self: *Self) void {
-    self.arr.deinit();
+    while (self.stack.pop()) |node| {
+        self.allocator.destroy(node);
+    }
 }
 
 pub fn set(self: *Self, data: []const u8) !void {
-    try self.arr.append(data);
+    const node = try self.allocator.create(Stack.Node);
+    node.* = .{ .data = data };
+    self.stack.append(node);
 }
 
 pub fn get(self: *Self) ?[]const u8 {
-    if (self.arr.items.len == 0) {
-        return null;
+    if (self.stack.popFirst()) |node| {
+        const ptr = node.data;
+        self.allocator.destroy(node);
+        return ptr;
     }
 
-    if (self.current_index == self.arr.items.len) {
-        self.current_index = 0;
-        self.arr.clearAndFree();
-        return null;
-    }
+    return null;
+}
 
-    const element = self.arr.items[self.current_index];
+test "should be able to init and deinit the stack" {
+    var suspense = Self.init(std.testing.allocator);
+    defer suspense.deinit();
 
-    self.current_index += 1;
+    const some_string = "hello world";
+    try suspense.set(some_string);
 
-    return element;
+    try expect(std.mem.eql(u8, suspense.get().?, some_string));
+}
+
+test "should set new elements to the end but get from the start" {
+    var suspense = Self.init(std.testing.allocator);
+    defer suspense.deinit();
+
+    try suspense.set("1");
+    try suspense.set("2");
+    try suspense.set("3");
+    try suspense.set("4");
+    try suspense.set("5");
+
+    try expect(std.mem.eql(u8, suspense.get().?, "1"));
+    try expect(std.mem.eql(u8, suspense.get().?, "2"));
+    try expect(std.mem.eql(u8, suspense.get().?, "3"));
+    try expect(std.mem.eql(u8, suspense.get().?, "4"));
+    try expect(std.mem.eql(u8, suspense.get().?, "5"));
+}
+
+test "should return null when empty" {
+    var suspense = Self.init(std.testing.allocator);
+    defer suspense.deinit();
+
+    try suspense.set("1");
+    try suspense.set("2");
+
+    try expect(std.mem.eql(u8, suspense.get().?, "1"));
+    try expect(std.mem.eql(u8, suspense.get().?, "2"));
+    try expect(suspense.get() == null);
+    try expect(suspense.get() == null);
+    try expect(suspense.get() == null);
 }
