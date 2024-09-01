@@ -15,7 +15,7 @@
 ## Key Features
 
 - Simple and straightforward to use thanks to built-in [reflections](https://ziglang.org/documentation/master/#Function-Reflection).
-- Just define a struct and access your struct fields.
+- Just define a struct, load a yml into it, and access your fields.
 - Supports recursive struct.
 - Deinitialization is handled for you, just call `deinit()` and you are done.
 - Fields are automatically parsed based on field type.
@@ -23,7 +23,9 @@
 
 ## How To Use
 
-Easiest way to use ymlz is to fetch it via `zig fetch`, **make sure provide it the url of latest released version as the argument**. See an example below.
+Easiest way to use ymlz is to fetch it via `zig fetch`, **make sure to provide it the url of latest released version as the argument**.
+
+See an example below.
 
 ```bash
 zig fetch --save https://github.com/pwbh/ymlz/archive/refs/tags/0.1.0.tar.gz
