@@ -28,8 +28,6 @@ const Expression = struct {
     raw: []const u8,
 };
 
-const Suspensed = std.DoublyLinkedList([]const u8);
-
 pub fn Ymlz(comptime Destination: type) type {
     return struct {
         allocator: Allocator,
