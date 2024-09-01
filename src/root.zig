@@ -155,16 +155,18 @@ pub fn Ymlz(comptime Destination: type) type {
 
             const destination_reflaction = @typeInfo(@TypeOf(destination));
 
-            // self.printFieldWithIdent(depth, @typeName(@TypeOf(destination)), "");
-
             inline for (destination_reflaction.Struct.fields) |field| {
                 const type_info = @typeInfo(field.type);
 
                 const is_optional_field = type_info == .Optional;
 
-                const raw_line = try self.readLine() orelse break;
-
-                // self.printFieldWithIdent(depth, field.name, raw_line);
+                // TODO: Need to think of something more robust then this.
+                const raw_line = try self.readLine() orelse {
+                    if (is_optional_field) {
+                        @field(destination, field.name) = null;
+                    }
+                    break;
+                };
 
                 const is_optional_and_valid = (is_optional_field and try self.isOptionalFieldExists(field.name, raw_line, depth));
 
@@ -283,7 +285,7 @@ pub fn Ymlz(comptime Destination: type) type {
                 return self.ignoreComment(line);
             }
 
-            return raw_line;
+            return null;
         }
 
         fn isNewExpression(self: *Self, raw_value_line: []const u8, depth: usize) bool {
