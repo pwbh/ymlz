@@ -101,8 +101,16 @@ pub fn Ymlz(comptime Destination: type) type {
                                 if (actualTypeInfo.Pointer.size == .Slice and child_type_info == .Struct) {
                                     const inner = @field(st, field.name);
 
-                                    for (inner) |inner_st| {
-                                        self.deinitRecursively(inner_st, depth + 1);
+                                    if (typeInfo == .Optional) {
+                                        if (inner) |n| {
+                                            for (n) |inner_st| {
+                                                self.deinitRecursively(inner_st, depth + 1);
+                                            }
+                                        }
+                                    } else {
+                                        for (inner) |inner_st| {
+                                            self.deinitRecursively(inner_st, depth + 1);
+                                        }
                                     }
                                 }
 
@@ -147,7 +155,7 @@ pub fn Ymlz(comptime Destination: type) type {
 
             const destination_reflaction = @typeInfo(@TypeOf(destination));
 
-            self.printFieldWithIdent(depth, @typeName(@TypeOf(destination)), "");
+            // self.printFieldWithIdent(depth, @typeName(@TypeOf(destination)), "");
 
             inline for (destination_reflaction.Struct.fields) |field| {
                 const typeInfo = @typeInfo(field.type);
@@ -156,16 +164,22 @@ pub fn Ymlz(comptime Destination: type) type {
 
                 const raw_line = try self.readLine() orelse break;
 
-                self.printFieldWithIdent(depth, field.name, raw_line);
+                // self.printFieldWithIdent(depth, field.name, raw_line);
 
                 const is_optional_and_valid = (is_optional_field and try self.isOptionalFieldExists(field.name, raw_line, depth));
 
+                std.debug.print("is_optional_field: {any}\n", .{is_optional_field});
                 if (is_optional_field) {
                     std.debug.print("About to parse optional field {s}.\n", .{field.name});
                 }
 
                 if (!is_optional_field or is_optional_and_valid) {
-                    const actualTypeInfo = if (typeInfo == .Optional) @typeInfo(typeInfo.Optional.child) else typeInfo;
+                    const actualTypeInfo = if (is_optional_field) @typeInfo(typeInfo.Optional.child) else typeInfo;
+
+                    if (is_optional_field) {
+                        std.debug.print("typeInfo: {s}\n", .{@typeName(@TypeOf(typeInfo))});
+                        std.debug.print("actualTypeInfo: {s}\n", .{@typeName(@TypeOf(actualTypeInfo))});
+                    }
 
                     switch (actualTypeInfo) {
                         .Bool => {
@@ -667,6 +681,14 @@ test "should be able to parse arrays of T" {
 }
 
 test "should be able to parse arrays and arrays in arrays" {
+    const Image = struct {
+        slot: u64,
+        name: []const u8,
+        multisampled: bool,
+        type: []const u8,
+        sample_type: []const u8,
+    };
+
     const Uniform = struct {
         name: []const u8,
         type: []const u8,
@@ -696,6 +718,7 @@ test "should be able to parse arrays and arrays in arrays" {
         inputs: []Input,
         outputs: []Input,
         uniform_blocks: []UniformBlock,
+        images: ?[]Image,
     };
 
     const Program = struct {
