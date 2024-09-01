@@ -451,6 +451,10 @@ pub fn Ymlz(comptime Destination: type) type {
     };
 }
 
+test {
+    _ = Suspense;
+}
+
 test "should be able to parse simple types" {
     const Subject = struct {
         first: i32,
