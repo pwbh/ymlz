@@ -158,9 +158,9 @@ pub fn Ymlz(comptime Destination: type) type {
             // self.printFieldWithIdent(depth, @typeName(@TypeOf(destination)), "");
 
             inline for (destination_reflaction.Struct.fields) |field| {
-                const typeInfo = @typeInfo(field.type);
+                const type_info = @typeInfo(field.type);
 
-                const is_optional_field = typeInfo == .Optional;
+                const is_optional_field = type_info == .Optional;
 
                 const raw_line = try self.readLine() orelse break;
 
@@ -168,47 +168,16 @@ pub fn Ymlz(comptime Destination: type) type {
 
                 const is_optional_and_valid = (is_optional_field and try self.isOptionalFieldExists(field.name, raw_line, depth));
 
-                std.debug.print("is_optional_field: {any}\n", .{is_optional_field});
-                if (is_optional_field) {
-                    std.debug.print("About to parse optional field {s}.\n", .{field.name});
-                }
-
                 if (!is_optional_field or is_optional_and_valid) {
-                    const actualTypeInfo = if (is_optional_field) @typeInfo(typeInfo.Optional.child) else typeInfo;
+                    const actual_type_info = if (is_optional_field) @typeInfo(type_info.Optional.child) else type_info;
 
-                    if (is_optional_field) {
-                        std.debug.print("typeInfo: {s}\n", .{@typeName(@TypeOf(typeInfo))});
-                        std.debug.print("actualTypeInfo: {s}\n", .{@typeName(@TypeOf(actualTypeInfo))});
-                    }
-
-                    switch (actualTypeInfo) {
-                        .Bool => {
-                            @field(destination, field.name) = try self.parseBooleanExpression(raw_line, depth);
-                        },
-                        .Int => {
-                            @field(destination, field.name) = try self.parseNumericExpression(field.type, raw_line, depth);
-                        },
-                        .Float => {
-                            @field(destination, field.name) = try self.parseNumericExpression(field.type, raw_line, depth);
-                        },
-                        .Pointer => {
-                            if (actualTypeInfo.Pointer.size == .Slice and actualTypeInfo.Pointer.child == u8) {
-                                @field(destination, field.name) = try self.parseStringExpression(raw_line, depth);
-                            } else if (actualTypeInfo.Pointer.size == .Slice and (actualTypeInfo.Pointer.child == []const u8 or actualTypeInfo.Pointer.child == []u8)) {
-                                @field(destination, field.name) = try self.parseStringArrayExpression(actualTypeInfo.Pointer.child, depth + 1);
-                            } else if (actualTypeInfo.Pointer.size == .Slice and @typeInfo(actualTypeInfo.Pointer.child) != .Pointer) {
-                                @field(destination, field.name) = try self.parseArrayExpression(actualTypeInfo.Pointer.child, depth + 1);
-                            } else {
-                                @panic("unexpected pointer type recieved - " ++ @typeName(field.type) ++ "\n");
-                            }
-                        },
-                        .Struct => {
-                            @field(destination, field.name) = try self.parse(field.type, depth + 1);
-                        },
-                        else => {
-                            @panic("unexpected type recieved - " ++ @typeName(field.type) ++ "\n");
-                        },
-                    }
+                    try self.parseField(
+                        actual_type_info,
+                        &destination,
+                        field,
+                        raw_line,
+                        depth,
+                    );
                 } else {
                     try self.suspense.set(raw_line);
                     @field(destination, field.name) = null;
@@ -216,6 +185,44 @@ pub fn Ymlz(comptime Destination: type) type {
             }
 
             return destination;
+        }
+
+        inline fn parseField(
+            self: *Self,
+            actual_type_info: std.builtin.Type,
+            destination: anytype,
+            field: std.builtin.Type.StructField,
+            raw_line: []const u8,
+            depth: usize,
+        ) !void {
+            switch (actual_type_info) {
+                .Bool => {
+                    @field(destination, field.name) = try self.parseBooleanExpression(raw_line, depth);
+                },
+                .Int => {
+                    @field(destination, field.name) = try self.parseNumericExpression(field.type, raw_line, depth);
+                },
+                .Float => {
+                    @field(destination, field.name) = try self.parseNumericExpression(field.type, raw_line, depth);
+                },
+                .Pointer => {
+                    if (actual_type_info.Pointer.size == .Slice and actual_type_info.Pointer.child == u8) {
+                        @field(destination, field.name) = try self.parseStringExpression(raw_line, depth);
+                    } else if (actual_type_info.Pointer.size == .Slice and (actual_type_info.Pointer.child == []const u8 or actual_type_info.Pointer.child == []u8)) {
+                        @field(destination, field.name) = try self.parseStringArrayExpression(actual_type_info.Pointer.child, depth + 1);
+                    } else if (actual_type_info.Pointer.size == .Slice and @typeInfo(actual_type_info.Pointer.child) != .Pointer) {
+                        @field(destination, field.name) = try self.parseArrayExpression(actual_type_info.Pointer.child, depth + 1);
+                    } else {
+                        @panic("unexpected pointer type recieved - " ++ @typeName(field.type) ++ "\n");
+                    }
+                },
+                .Struct => {
+                    @field(destination, field.name) = try self.parse(field.type, depth + 1);
+                },
+                else => {
+                    @panic("unexpected type recieved - " ++ @typeName(field.type) ++ "\n");
+                },
+            }
         }
 
         fn isOptionalFieldExists(self: *Self, lookup_key: []const u8, raw_line: []const u8, depth: usize) !bool {
