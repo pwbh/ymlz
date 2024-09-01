@@ -19,6 +19,7 @@
 - Supports recursive struct.
 - Deinitialization is handled for you, just call `deinit()` and you are done.
 - Fields are automatically parsed based on field type.
+- Optional fields
 
 ## How To Use
 
