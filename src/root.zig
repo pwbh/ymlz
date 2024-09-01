@@ -93,13 +93,14 @@ pub fn Ymlz(comptime Destination: type) type {
             if (destination_reflaction == .Struct) {
                 inline for (destination_reflaction.Struct.fields) |field| {
                     const typeInfo = @typeInfo(field.type);
+                    const actualTypeInfo = if (typeInfo == .Optional) @typeInfo(typeInfo.Optional.child) else typeInfo;
 
-                    switch (typeInfo) {
+                    switch (actualTypeInfo) {
                         .Pointer => {
-                            if (typeInfo.Pointer.size == .Slice and typeInfo.Pointer.child != u8) {
-                                const child_type_info = @typeInfo(typeInfo.Pointer.child);
+                            if (actualTypeInfo.Pointer.size == .Slice and actualTypeInfo.Pointer.child != u8) {
+                                const child_type_info = @typeInfo(actualTypeInfo.Pointer.child);
 
-                                if (typeInfo.Pointer.size == .Slice and child_type_info == .Struct) {
+                                if (actualTypeInfo.Pointer.size == .Slice and child_type_info == .Struct) {
                                     const inner = @field(st, field.name);
 
                                     for (inner) |inner_st| {
@@ -108,7 +109,14 @@ pub fn Ymlz(comptime Destination: type) type {
                                 }
 
                                 const container = @field(st, field.name);
-                                self.allocator.free(container);
+
+                                if (typeInfo == .Optional) {
+                                    if (container) |c| {
+                                        self.allocator.free(c);
+                                    }
+                                } else {
+                                    self.allocator.free(container);
+                                }
                             }
                         },
                         .Struct => {
@@ -156,37 +164,53 @@ pub fn Ymlz(comptime Destination: type) type {
 
                 // self.printFieldWithIdent(depth, field.name, raw_line);
 
-                switch (typeInfo) {
-                    .Bool => {
-                        @field(destination, field.name) = try self.parseBooleanExpression(raw_line, depth);
-                    },
-                    .Int => {
-                        @field(destination, field.name) = try self.parseNumericExpression(field.type, raw_line, depth);
-                    },
-                    .Float => {
-                        @field(destination, field.name) = try self.parseNumericExpression(field.type, raw_line, depth);
-                    },
-                    .Pointer => {
-                        if (typeInfo.Pointer.size == .Slice and typeInfo.Pointer.child == u8) {
-                            @field(destination, field.name) = try self.parseStringExpression(raw_line, depth);
-                        } else if (typeInfo.Pointer.size == .Slice and (typeInfo.Pointer.child == []const u8 or typeInfo.Pointer.child == []u8)) {
-                            @field(destination, field.name) = try self.parseStringArrayExpression(typeInfo.Pointer.child, depth + 1);
-                        } else if (typeInfo.Pointer.size == .Slice and @typeInfo(typeInfo.Pointer.child) != .Pointer) {
-                            @field(destination, field.name) = try self.parseArrayExpression(typeInfo.Pointer.child, depth + 1);
-                        } else {
+                const is_optional_valid = (typeInfo == .Optional and try self.isOptionalFieldExists(field.name, raw_line, depth));
+
+                if (typeInfo != .Optional or is_optional_valid) {
+                    const actualTypeInfo = if (typeInfo == .Optional) @typeInfo(typeInfo.Optional.child) else typeInfo;
+
+                    switch (actualTypeInfo) {
+                        .Bool => {
+                            @field(destination, field.name) = try self.parseBooleanExpression(raw_line, depth);
+                        },
+                        .Int => {
+                            @field(destination, field.name) = try self.parseNumericExpression(field.type, raw_line, depth);
+                        },
+                        .Float => {
+                            @field(destination, field.name) = try self.parseNumericExpression(field.type, raw_line, depth);
+                        },
+                        .Pointer => {
+                            if (actualTypeInfo.Pointer.size == .Slice and actualTypeInfo.Pointer.child == u8) {
+                                @field(destination, field.name) = try self.parseStringExpression(raw_line, depth);
+                            } else if (actualTypeInfo.Pointer.size == .Slice and (actualTypeInfo.Pointer.child == []const u8 or actualTypeInfo.Pointer.child == []u8)) {
+                                @field(destination, field.name) = try self.parseStringArrayExpression(actualTypeInfo.Pointer.child, depth + 1);
+                            } else if (actualTypeInfo.Pointer.size == .Slice and @typeInfo(actualTypeInfo.Pointer.child) != .Pointer) {
+                                @field(destination, field.name) = try self.parseArrayExpression(actualTypeInfo.Pointer.child, depth + 1);
+                            } else {
+                                @panic("unexpected pointer type recieved - " ++ @typeName(field.type) ++ "\n");
+                            }
+                        },
+                        .Struct => {
+                            @field(destination, field.name) = try self.parse(field.type, depth + 1);
+                        },
+                        else => {
                             @panic("unexpected type recieved - " ++ @typeName(field.type) ++ "\n");
-                        }
-                    },
-                    .Struct => {
-                        @field(destination, field.name) = try self.parse(field.type, depth + 1);
-                    },
-                    else => {
-                        @panic("unexpected type recieved - " ++ @typeName(field.type) ++ "\n");
-                    },
+                        },
+                    }
+                } else {
+                    try self.suspense.set(raw_line);
+                    @field(destination, field.name) = null;
                 }
             }
 
             return destination;
+        }
+
+        fn isOptionalFieldExists(self: *Self, lookup_key: []const u8, raw_line: []const u8, depth: usize) !bool {
+            const indent_depth = self.getIndentDepth(depth);
+            var split_iterator = std.mem.split(u8, raw_line[indent_depth..], ":");
+            const key = split_iterator.next() orelse return false;
+            return std.mem.eql(u8, key, lookup_key);
         }
 
         fn ignoreComment(self: *Self, line: []const u8) []const u8 {
@@ -693,4 +717,48 @@ test "should be able to parse arrays and arrays in arrays" {
     defer ymlz.deinit(result);
 
     try expect(std.mem.eql(u8, result.shaders[0].programs[0].fs.uniform_blocks[0].uniforms[0].name, "u_color_override"));
+}
+
+test "should be able to to skip optional fields if non-existent in the parsed file" {
+    const Subject = struct {
+        first: i32,
+        second: ?i64,
+        name: []const u8,
+        fourth: f32,
+        foods: ?[][]const u8,
+        more_foods: ?[][]const u8,
+        inner: struct {
+            abcd: i32,
+            k: u32,
+            l: []const u8,
+            another: struct {
+                new: i8,
+                stringed: []const u8,
+            },
+        },
+    };
+
+    const yml_file_location = try std.fs.cwd().realpathAlloc(
+        std.testing.allocator,
+        "./resources/super_simple_with_optional.yml",
+    );
+    defer std.testing.allocator.free(yml_file_location);
+
+    var ymlz = try Ymlz(Subject).init(std.testing.allocator);
+    const result = try ymlz.loadFile(yml_file_location);
+    defer ymlz.deinit(result);
+
+    try expect(result.first == 500);
+    try expect(result.second == null);
+    try expect(std.mem.eql(u8, result.name, "just testing strings overhere"));
+    try expect(result.fourth == 142.241);
+
+    const foods = result.foods.?;
+    try expect(foods.len == 4);
+    try expect(std.mem.eql(u8, foods[0], "Apple"));
+    try expect(std.mem.eql(u8, foods[1], "Orange"));
+    try expect(std.mem.eql(u8, foods[2], "Strawberry"));
+    try expect(std.mem.eql(u8, foods[3], "Mango"));
+
+    try expect(result.more_foods == null);
 }
