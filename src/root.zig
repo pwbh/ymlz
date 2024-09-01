@@ -761,4 +761,7 @@ test "should be able to to skip optional fields if non-existent in the parsed fi
     try expect(std.mem.eql(u8, foods[3], "Mango"));
 
     try expect(result.more_foods == null);
+
+    try expect(result.inner.abcd == 12);
+    try expect(std.mem.eql(u8, result.inner.another.stringed, "its just a string"));
 }
