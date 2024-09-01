@@ -66,3 +66,9 @@ shaders:
                   type: vec4
                   array_count: 1
                   offset: 120
+          images:
+            - slot: 100
+              name: tex
+              multisampled: false
+              type: 2d
+              sample_type: float
