@@ -132,7 +132,7 @@ You are more then welcomed to submit a PR, ymlz codebase is still pretty small a
 
 ## Support
 
-If you find a bug please [submit new issue](https://github.com/pwbh/ymlz/issues/new) and I will try to address it in my free time. I do however want to not that this project is used in my bigger project, so any bugs I find, I fix without reporting them as an issue, so some issues that may have been reported have beeen fixed without me seeing it yet.
+If you find a bug please [submit new issue](https://github.com/pwbh/ymlz/issues/new) and I will try to address it in my free time. I do however want to note that this project is used in my bigger project, so any bugs I find, I fix without reporting them as an issue, so some issues that may have been reported have beeen fixed without me seeing them.
 
 ## License
 
