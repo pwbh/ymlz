@@ -42,7 +42,11 @@ pub fn build(b: *std.Build) void {
 }
 ```
 
-Now in your code you may import and use ymlz, I will be loading the following YAML file located in the root of my project under the name `file.yml`:
+ymlz currently exposes to 2 API functions
+
+### Parsing YAML from file
+
+We can utilize `loadFile` which expects a `[]const u8` the absolute path to your YAML file, I will be loading the following YAML file located in the root of my project under the name `file.yml`:
 
 ```yml
 first: 500
@@ -124,6 +128,66 @@ pub fn main() !void {
         std.debug.print("{s}", .{food});
     }
 }
+```
+
+### Parsing YAML from bytes
+
+We can parse the YAML file using generic byte array for the sake of example lets parse a `[]const u8` that contains some YAML expression.
+
+```zig
+const std = @import("std");
+
+const Ymlz = @import("root.zig").Ymlz;
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+    defer _ = gpa.deinit();
+
+    const yaml_content =
+        \\first: 500
+        \\second: -3
+        \\name: just testing strings overhere # just a comment
+        \\fourth: 142.241
+        \\# comment in between lines
+        \\foods:
+        \\  - Apple
+        \\  - Orange
+        \\  - Strawberry
+        \\  - Mango
+        \\inner:
+        \\  abcd: 12
+        \\  k: 2
+        \\  l: hello world                 # comment somewhere
+        \\  another:
+        \\    new: 1
+        \\    stringed: its just a string
+    ;
+
+    const Experiment = struct {
+        first: i32,
+        second: i64,
+        name: []const u8,
+        fourth: f32,
+        foods: [][]const u8,
+        inner: struct {
+            abcd: i32,
+            k: u8,
+            l: []const u8,
+            another: struct {
+                new: f32,
+                stringed: []const u8,
+            },
+        },
+    };
+
+    var ymlz = try Ymlz(Experiment).init(allocator);
+    const result = try ymlz.loadRaw(yaml_content);
+    defer ymlz.deinit(result);
+
+    std.debug.print("Experiment.first: {}\n", .{result.first});
+}
+
 ```
 
 ## Contribution
