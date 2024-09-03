@@ -37,6 +37,8 @@ pub fn Ymlz(comptime Destination: type) type {
 
         const Self = @This();
 
+        const InternalRawContenxt = struct { current_index: usize = 0, buf: []const u8 };
+
         pub fn init(allocator: Allocator) !Self {
             return .{
                 .allocator = allocator,
@@ -72,6 +74,21 @@ pub fn Ymlz(comptime Destination: type) type {
         fn fileRead(context: *const anyopaque, buf: []u8) anyerror!usize {
             const file: *std.fs.File = @constCast(@alignCast(@ptrCast(context)));
             return std.fs.File.read(file.*, buf);
+        }
+
+        pub fn loadRaw(self: *Self, raw: []const u8) !Destination {
+            const context: InternalRawContenxt = .{ .buf = raw };
+            const any_reader: std.io.AnyReader = .{ .context = &context, .readFn = rawRead };
+            return self.loadReader(any_reader);
+        }
+
+        fn rawRead(context: *const anyopaque, buf: []u8) anyerror!usize {
+            var internal_raw_context: *InternalRawContenxt = @constCast(@alignCast(@ptrCast(context)));
+            const source = internal_raw_context.buf[internal_raw_context.current_index..];
+            const len = @min(buf.len, source.len);
+            @memcpy(buf[0..len], source[0..len]);
+            internal_raw_context.current_index += len;
+            return len;
         }
 
         /// Allows passing a reader which will be used to parse your raw yml bytes.
