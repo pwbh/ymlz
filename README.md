@@ -42,11 +42,9 @@ pub fn build(b: *std.Build) void {
 }
 ```
 
-ymlz currently exposes to 2 API functions
-
 ### Parsing YAML from file
 
-We can utilize `loadFile` which expects a `[]const u8` the absolute path to your YAML file, I will be loading the following YAML file located in the root of my project under the name `file.yml`:
+We can utilize `loadFile` which expects the absolute path to your YAML file, I will be loading the following YAML file located in the root of my project under the name `file.yml`:
 
 ```yml
 first: 500
@@ -67,9 +65,11 @@ inner:
     stringed: its just a string
 ```
 
-In your Zig codebase:
+main.zig:
 
 ```zig
+/// Usage
+/// zig build run -- ./file.yml
 const std = @import("std");
 
 const Ymlz = @import("ymlz").Ymlz;
@@ -92,8 +92,7 @@ const Tester = struct {
         },
     },
 };
-/// Usage
-/// zig build run -- ./file.yml
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
@@ -132,7 +131,7 @@ pub fn main() !void {
 
 ### Parsing YAML from bytes
 
-We can parse the YAML file using generic byte array for the sake of example lets parse a `[]const u8` that contains some YAML expression.
+Parsing YAML file using generic u8 slice for the sake of example lets parse a small YAML inlined in a to some varaible that contains our YAML u8 slice.
 
 ```zig
 const std = @import("std");
@@ -189,6 +188,10 @@ pub fn main() !void {
 }
 
 ```
+
+### Parsing by providing a custom std.io.AnyReader
+
+It's possible to pass your own implementation of the std.io.AnyReader interface to ymlz using `loadReader` which is used internally for both `loadFile` and `loadRaw`. See [internal implementation](https://github.com/pwbh/ymlz/blob/master/src/root.zig#L64) for reference.
 
 ## Contribution
 
