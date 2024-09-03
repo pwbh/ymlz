@@ -131,7 +131,7 @@ pub fn main() !void {
 
 ### Parsing YAML from bytes
 
-Parsing YAML file using generic u8 slice for the sake of example lets parse a small YAML inlined in a to some varaible that contains our YAML u8 slice.
+Parsing YAML file using generic `u8` slice for the sake of our example, lets parse a small YAML inlined in to some variable that contains our YAML in `[]const u8`.
 
 ```zig
 const std = @import("std");
