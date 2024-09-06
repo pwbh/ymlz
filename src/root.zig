@@ -362,6 +362,8 @@ pub fn Ymlz(comptime Destination: type) type {
             const expression = try self.parseSimpleExpression(raw_line, depth);
             const value = self.getExpressionValue(expression);
 
+            if (value.len == 0) return value;
+
             switch (value[0]) {
                 '|' => {
                     return self.parseMultilineString(depth + 1, true);
@@ -491,6 +493,7 @@ pub fn Ymlz(comptime Destination: type) type {
 
 test {
     _ = Suspense;
+    _ = @import("tests.zig");
 }
 
 test "should be able to parse simple types" {
