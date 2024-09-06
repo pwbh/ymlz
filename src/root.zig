@@ -293,6 +293,10 @@ pub fn Ymlz(comptime Destination: type) type {
             if (raw_line) |line| {
                 try self.allocations.append(line);
 
+                if (line.len == 0) {
+                    return "\n";
+                }
+
                 // TODO: Need to fix this comments can start not only from index 0.
                 if (line[0] == '#') {
                     // Skipping comments
@@ -361,6 +365,8 @@ pub fn Ymlz(comptime Destination: type) type {
         fn parseStringExpression(self: *Self, raw_line: []const u8, depth: usize) ![]const u8 {
             const expression = try self.parseSimpleExpression(raw_line, depth);
             const value = self.getExpressionValue(expression);
+
+            if (value.len == 0) return value;
 
             switch (value[0]) {
                 '|' => {
@@ -461,6 +467,14 @@ pub fn Ymlz(comptime Destination: type) type {
 
         fn parseSimpleExpression(self: *Self, raw_line: []const u8, depth: usize) !Expression {
             const indent_depth = self.getIndentDepth(depth);
+
+            if (raw_line.len < indent_depth) {
+                return .{
+                    .value = .{ .Simple = raw_line },
+                    .raw = raw_line,
+                };
+            }
+
             const line = raw_line[indent_depth..];
 
             if (line[0] == '-') {
@@ -491,6 +505,7 @@ pub fn Ymlz(comptime Destination: type) type {
 
 test {
     _ = Suspense;
+    _ = @import("tests.zig");
 }
 
 test "should be able to parse simple types" {
