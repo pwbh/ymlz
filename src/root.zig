@@ -226,7 +226,7 @@ pub fn Ymlz(comptime Destination: type) type {
                 },
                 .Pointer => {
                     if (actual_type_info.Pointer.size == .Slice and actual_type_info.Pointer.child == u8) {
-                        @field(destination, field.name) = try self.parseStringExpression(raw_line, depth);
+                        @field(destination, field.name) = try self.parseStringExpression(raw_line, depth, false);
                     } else if (actual_type_info.Pointer.size == .Slice and (actual_type_info.Pointer.child == []const u8 or actual_type_info.Pointer.child == []u8)) {
                         @field(destination, field.name) = try self.parseStringArrayExpression(actual_type_info.Pointer.child, depth + 1);
                     } else if (actual_type_info.Pointer.size == .Slice and @typeInfo(actual_type_info.Pointer.child) != .Pointer) {
@@ -333,7 +333,7 @@ pub fn Ymlz(comptime Destination: type) type {
                     break;
                 }
 
-                const result = try self.parseStringExpression(raw_value_line, depth);
+                const result = try self.parseStringExpression(raw_value_line, depth, false);
 
                 try list.append(result);
             }
@@ -362,8 +362,8 @@ pub fn Ymlz(comptime Destination: type) type {
             return try list.toOwnedSlice();
         }
 
-        fn parseStringExpression(self: *Self, raw_line: []const u8, depth: usize) ![]const u8 {
-            const expression = try self.parseSimpleExpression(raw_line, depth);
+        fn parseStringExpression(self: *Self, raw_line: []const u8, depth: usize, is_multiline: bool) ![]const u8 {
+            const expression = try self.parseSimpleExpression(raw_line, depth, is_multiline);
             const value = self.getExpressionValue(expression);
 
             if (value.len == 0) return value;
@@ -393,7 +393,7 @@ pub fn Ymlz(comptime Destination: type) type {
                     break;
                 }
 
-                const expression = try self.parseSimpleExpression(raw_value_line, depth);
+                const expression = try self.parseSimpleExpression(raw_value_line, depth, true);
                 const value = self.getExpressionValue(expression);
 
                 try list.appendSlice(value);
@@ -420,7 +420,7 @@ pub fn Ymlz(comptime Destination: type) type {
         }
 
         fn parseBooleanExpression(self: *Self, raw_line: []const u8, depth: usize) !bool {
-            const expression = try self.parseSimpleExpression(raw_line, depth);
+            const expression = try self.parseSimpleExpression(raw_line, depth, false);
             const value = self.getExpressionValue(expression);
 
             const isBooleanTrue = std.mem.eql(u8, value, "True") or std.mem.eql(u8, value, "true") or std.mem.eql(u8, value, "On") or std.mem.eql(u8, value, "on");
@@ -439,7 +439,7 @@ pub fn Ymlz(comptime Destination: type) type {
         }
 
         fn parseNumericExpression(self: *Self, comptime T: type, raw_line: []const u8, depth: usize) !T {
-            const expression = try self.parseSimpleExpression(raw_line, depth);
+            const expression = try self.parseSimpleExpression(raw_line, depth, false);
             const value = self.getExpressionValue(expression);
 
             switch (@typeInfo(T)) {
@@ -465,12 +465,20 @@ pub fn Ymlz(comptime Destination: type) type {
             return line;
         }
 
-        fn parseSimpleExpression(self: *Self, raw_line: []const u8, depth: usize) !Expression {
+        fn parseSimpleExpression(self: *Self, raw_line: []const u8, depth: usize, is_multiline: bool) !Expression {
             const indent_depth = self.getIndentDepth(depth);
 
             if (raw_line.len < indent_depth) {
                 return .{
                     .value = .{ .Simple = raw_line },
+                    .raw = raw_line,
+                };
+            }
+
+            // NOTE: Need to think about this a bit more, maybe there is a cleaner solution for this.
+            if (is_multiline) {
+                return .{
+                    .value = .{ .Simple = raw_line[indent_depth..] },
                     .raw = raw_line,
                 };
             }

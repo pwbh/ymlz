@@ -64,8 +64,7 @@ test "CC74" {
     const element = result.elements[0];
 
     try expect(std.mem.eql(u8, element.name, "Spec Example 6.20. Tag Handles"));
-    std.debug.print("parsed:{s}\n", .{element.dump});
-    try expect(std.mem.eql(u8, element.dump, "- !<tag:example.com,2000:app/foo> \"bar\""));
+    try expect(std.mem.eql(u8, element.dump, "--- !<tag:example.com,2000:app/foo> \"bar\"\n"));
 }
 
 test "F6MC" {
