@@ -458,7 +458,7 @@ pub fn Ymlz(comptime Destination: type) type {
         fn withoutQuotes(self: *Self, line: []const u8) []const u8 {
             _ = self;
 
-            if (line[0] == '\'' or line[0] == '"' and line[line.len - 1] == '\'' or line[line.len - 1] == '"') {
+            if ((line[0] == '\'' or line[0] == '"') and (line[line.len - 1] == '\'' or line[line.len - 1] == '"')) {
                 return line[1 .. line.len - 1];
             }
 
