@@ -293,12 +293,8 @@ pub fn Ymlz(comptime Destination: type) type {
             if (raw_line) |line| {
                 try self.allocations.append(line);
 
-                if (line.len == 0) {
-                    return "\n";
-                }
-
                 // TODO: Need to fix this comments can start not only from index 0.
-                if (line[0] == '#') {
+                if (line.len == 0 or line[0] == '#') {
                     // Skipping comments
                     return self.readLine();
                 }
