@@ -29,7 +29,11 @@ test "98YD" {
     const result = try ymlz.loadFile(yml_file_location);
     defer ymlz.deinit(result);
 
-    try expect(std.mem.eql(u8, result.elements[0].name, "Spec Example 5.5. Comment Indicator"));
+    const element = result.elements[0];
+
+    try expect(std.mem.eql(u8, element.name, "Spec Example 5.5. Comment Indicator"));
+    // dump: ""
+    try expect(element.dump.len == 0);
 }
 
 test "CC74" {
@@ -57,7 +61,11 @@ test "CC74" {
     const result = try ymlz.loadFile(yml_file_location);
     defer ymlz.deinit(result);
 
-    try expect(std.mem.eql(u8, result.elements[0].name, "Spec Example 6.20. Tag Handles"));
+    const element = result.elements[0];
+
+    try expect(std.mem.eql(u8, element.name, "Spec Example 6.20. Tag Handles"));
+    try expect(std.mem.eql(u8, element.tree, "+STR\n +DOC ---\n  =VAL <tag:example.com,2000:app/foo> \"bar\n -DOC\n-STR"));
+    try expect(std.mem.eql(u8, element.dump, "--- !<tag:example.com,2000:app/foo> \"bar\"\n"));
 }
 
 test "F6MC" {
@@ -85,5 +93,8 @@ test "F6MC" {
     const result = try ymlz.loadFile(yml_file_location);
     defer ymlz.deinit(result);
 
-    try expect(std.mem.eql(u8, result.elements[0].name, "More indented lines at the beginning of folded block scalars"));
+    const element = result.elements[0];
+
+    try expect(std.mem.eql(u8, element.name, "More indented lines at the beginning of folded block scalars"));
+    try expect(std.mem.eql(u8, element.json, "{\n  \"a\": \" more indented\\nregular\\n\",\n  \"b\": \"\\n\\n more indented\\nregular\\n\"\n}"));
 }
