@@ -305,6 +305,13 @@ pub fn Ymlz(comptime Destination: type) type {
             return null;
         }
 
+        fn isArrayEntryOnlyChar(raw_line: []const u8) bool {
+            // Trim whitespace to see if this is only the array start char
+            var trimmed_line = std.mem.trimLeft(u8, raw_line, " ");
+            trimmed_line = std.mem.trimRight(u8, trimmed_line, " ");
+            return std.mem.eql(u8, trimmed_line, "-");
+        }
+
         fn isNewExpression(self: *Self, raw_value_line: []const u8, depth: usize) bool {
             const indent_depth = self.getIndentDepth(depth);
 
@@ -343,6 +350,11 @@ pub fn Ymlz(comptime Destination: type) type {
 
             while (true) {
                 const raw_value_line = try self.readLine() orelse break;
+
+                // If this is only the array entry char '-', just eat this line
+                if (isArrayEntryOnlyChar(raw_value_line)) {
+                    continue;
+                }
 
                 try self.suspense.set(raw_value_line);
 
