@@ -1,30 +1,36 @@
 shaders:
   - slang: glsl430
     programs:
-      - name: default
+      -
+        name: default
         vs:
           path: /Users/ccuddigan/Github/delve-framework/assets/shaders/built/default/default_default_glsl430_vs.glsl
           is_binary: false
           entry_point: main
           inputs:
-            - slot: 0
+            -
+              slot: 0
               name: pos
               sem_name: TEXCOORD
               sem_index: 0
-            - slot: 1
+            -
+              slot: 1
               name: color0
               sem_name: TEXCOORD
               sem_index: 1
-            - slot: 2
+            -
+              slot: 2
               name: texcoord0
               sem_name: TEXCOORD
               sem_index: 2
           outputs:
-            - slot: 0
+            -
+              slot: 0
               name: color
               sem_name: TEXCOORD
               sem_index: 0
-            - slot: 1
+            -
+              slot: 1
               name: uv
               sem_name: TEXCOORD
               sem_index: 1
@@ -43,7 +49,8 @@ shaders:
           is_binary: false
           entry_point: main
           inputs:
-            - slot: 0
+            -
+              slot: 0
               name: color
               sem_name: TEXCOORD
               sem_index: 0
@@ -81,23 +88,28 @@ shaders:
               name: tex_smp
               image_name: tex
               sampler_name: smp
-  - slang: glsl300es
+  -
+    slang: glsl300es
     programs:
-      - name: default
+      -
+        name: default
         vs:
           path: /Users/ccuddigan/Github/delve-framework/assets/shaders/built/default/default_default_glsl300es_vs.glsl
           is_binary: false
           entry_point: main
           inputs:
-            - slot: 0
+            -
+              slot: 0
               name: pos
               sem_name: TEXCOORD
               sem_index: 0
-            - slot: 1
+            -
+              slot: 1
               name: color0
               sem_name: TEXCOORD
               sem_index: 1
-            - slot: 2
+            -
+              slot: 2
               name: texcoord0
               sem_name: TEXCOORD
               sem_index: 2
