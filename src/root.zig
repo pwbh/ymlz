@@ -372,7 +372,10 @@ pub fn Ymlz(comptime Destination: type) type {
 
         fn parseStringExpression(self: *Self, raw_line: []const u8, depth: usize, is_multiline: bool) ![]const u8 {
             const expression = try self.parseSimpleExpression(raw_line, depth, is_multiline);
-            const value = self.getExpressionValue(expression);
+            var value = self.getExpressionValue(expression);
+
+            // Trim spaces to avoid errors when placing spaces after strings in the yaml
+            value = std.mem.trim(u8, value, " ");
 
             if (value.len == 0) return value;
 
@@ -429,7 +432,10 @@ pub fn Ymlz(comptime Destination: type) type {
 
         fn parseBooleanExpression(self: *Self, raw_line: []const u8, depth: usize) !bool {
             const expression = try self.parseSimpleExpression(raw_line, depth, false);
-            const value = self.getExpressionValue(expression);
+            var value = self.getExpressionValue(expression);
+
+            // Trim spaces to avoid errors when placing spaces after strings in the yaml
+            value = std.mem.trim(u8, value, " ");
 
             const isBooleanTrue = std.mem.eql(u8, value, "True") or std.mem.eql(u8, value, "true") or std.mem.eql(u8, value, "On") or std.mem.eql(u8, value, "on");
 

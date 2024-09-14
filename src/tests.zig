@@ -4,6 +4,36 @@ const expect = std.testing.expect;
 
 const Ymlz = @import("root.zig").Ymlz;
 
+test "Multiple elements in yaml file" {
+    const MultiElement = struct {
+        name: []const u8,
+        bool_val: bool,
+    };
+
+    const Elements = struct { elements: []MultiElement };
+
+    const yml_file_location = try std.fs.cwd().realpathAlloc(
+        std.testing.allocator,
+        "./resources/yaml-test-suite/multiple_elements.yml",
+    );
+    defer std.testing.allocator.free(yml_file_location);
+
+    var ymlz = try Ymlz(Elements).init(std.testing.allocator);
+    const result = try ymlz.loadFile(yml_file_location);
+    defer ymlz.deinit(result);
+
+    // Ensure both elements are parsed as expected and we have 2
+    try expect(result.elements.len == 2);
+
+    // Test 1st element
+    try expect(result.elements[0].bool_val == true);
+    try expect(std.mem.eql(u8, result.elements[0].name, "Example Name"));
+
+    // Test 2nd element
+    try expect(result.elements[1].bool_val == false);
+    try expect(std.mem.eql(u8, result.elements[1].name, "Example Name 2"));
+}
+
 test "98YD" {
     const Element = struct {
         name: []const u8,
@@ -13,6 +43,9 @@ test "98YD" {
         tree: []const u8,
         json: []const u8,
         dump: []const u8,
+        bool_val: bool,
+        bool_val_2: bool,
+        bool_val_with_spaces: bool,
     };
 
     const Experiment = struct {
@@ -30,6 +63,11 @@ test "98YD" {
     defer ymlz.deinit(result);
 
     const element = result.elements[0];
+
+    // Test booleans
+    try expect(element.bool_val == true);
+    try expect(element.bool_val_2 == false);
+    try expect(element.bool_val_with_spaces == true);
 
     try expect(std.mem.eql(u8, element.name, "Spec Example 5.5. Comment Indicator"));
     // dump: ""

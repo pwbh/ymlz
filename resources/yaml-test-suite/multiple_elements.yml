@@ -1,0 +1,5 @@
+elemennts:
+  - name: Example Name 
+    bool_val: true
+  - name: Example Name 2
+    bool_val: false 
