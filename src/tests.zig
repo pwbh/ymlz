@@ -8,13 +8,15 @@ test "Multiple elements in yaml file" {
     const MultiElement = struct {
         name: []const u8,
         bool_val: bool,
+        int_val: u8,
+        float_val: f64,
     };
 
     const Elements = struct { elements: []MultiElement };
 
     const yml_file_location = try std.fs.cwd().realpathAlloc(
         std.testing.allocator,
-        "./resources/yaml-test-suite/multiple_elements.yml",
+        "./resources/multiple_elements.yml",
     );
     defer std.testing.allocator.free(yml_file_location);
 
@@ -32,9 +34,17 @@ test "Multiple elements in yaml file" {
     // Test 2nd element
     try expect(result.elements[1].bool_val == false);
     try expect(std.mem.eql(u8, result.elements[1].name, "Example Name 2"));
+
+    // Test Ints
+    try expect(result.elements[0].int_val == 0);
+    try expect(result.elements[1].int_val == 120);
+
+    // Test floats
+    try expect(result.elements[0].float_val == 3.14);
+    try expect(result.elements[1].float_val == 56.123);
 }
 
-test "98YD" {
+test "98YD with bools" {
     const Element = struct {
         name: []const u8,
         from: []const u8,
@@ -54,7 +64,7 @@ test "98YD" {
 
     const yml_file_location = try std.fs.cwd().realpathAlloc(
         std.testing.allocator,
-        "./resources/yaml-test-suite/98YD.yml",
+        "./resources/yaml-test-suite/98YD-mixed.yml",
     );
     defer std.testing.allocator.free(yml_file_location);
 
@@ -68,6 +78,37 @@ test "98YD" {
     try expect(element.bool_val == true);
     try expect(element.bool_val_2 == false);
     try expect(element.bool_val_with_spaces == true);
+
+    try expect(std.mem.eql(u8, element.name, "Spec Example 5.5. Comment Indicator"));
+    try expect(element.dump.len == 0);
+}
+
+test "98YD" {
+    const Element = struct {
+        name: []const u8,
+        from: []const u8,
+        tags: []const u8,
+        yaml: []const u8,
+        tree: []const u8,
+        json: []const u8,
+        dump: []const u8,
+    };
+
+    const Experiment = struct {
+        elements: []Element,
+    };
+
+    const yml_file_location = try std.fs.cwd().realpathAlloc(
+        std.testing.allocator,
+        "./resources/yaml-test-suite/98YD.yml",
+    );
+    defer std.testing.allocator.free(yml_file_location);
+
+    var ymlz = try Ymlz(Experiment).init(std.testing.allocator);
+    const result = try ymlz.loadFile(yml_file_location);
+    defer ymlz.deinit(result);
+
+    const element = result.elements[0];
 
     try expect(std.mem.eql(u8, element.name, "Spec Example 5.5. Comment Indicator"));
     // dump: ""

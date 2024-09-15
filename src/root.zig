@@ -454,7 +454,9 @@ pub fn Ymlz(comptime Destination: type) type {
 
         fn parseNumericExpression(self: *Self, comptime T: type, raw_line: []const u8, depth: usize) !T {
             const expression = try self.parseSimpleExpression(raw_line, depth, false);
-            const value = self.getExpressionValue(expression);
+            var value = self.getExpressionValue(expression);
+
+            value = std.mem.trim(u8, value, " ");
 
             switch (@typeInfo(T)) {
                 .Int => {
