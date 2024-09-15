@@ -421,11 +421,13 @@ pub fn Ymlz(comptime Destination: type) type {
             _ = self;
 
             // Trim spaces from value
-            return std.mem.trim(u8, switch (expression.value) {
+            const value = switch (expression.value) {
                 .Simple => expression.value.Simple,
                 .KV => expression.value.KV.value,
                 else => @panic("Not implemeted for " ++ @typeName(@TypeOf(expression.value))),
-            }, " ");
+            };
+
+            return std.mem.trim(u8, value, " ");
         }
 
         fn getExpressionValue(self: *Self, expression: Expression) []const u8 {
