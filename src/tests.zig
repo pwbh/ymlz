@@ -31,6 +31,9 @@ test "Multiple elements in yaml file" {
     try expect(result.elements[0].bool_val == true);
     try expect(std.mem.eql(u8, result.elements[0].name, "Example Name"));
 
+    // Ensure 1st element does *not* have spaces (A space is manually entered into the yaml file)
+    try expect(!std.mem.eql(u8, result.elements[0].name, "Example Name "));
+
     // Test 2nd element
     try expect(result.elements[1].bool_val == false);
     try expect(std.mem.eql(u8, result.elements[1].name, "Example Name 2"));
