@@ -1,3 +1,4 @@
+---
 elements:
   - name: Comment and document-end marker
     from: "@perlpunk"
