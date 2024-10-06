@@ -211,3 +211,35 @@ test "QT73" {
     try expect(std.mem.eql(u8, element.name, "Comment and document-end marker"));
     try expect(std.mem.eql(u8, element.from, "@perlpunk"));
 }
+
+test "J5UC" {
+    const Element = struct {
+        name: []const u8,
+        from: []const u8,
+        tags: []const u8,
+        yaml: []const u8,
+        tree: []const u8,
+        json: []const u8,
+    };
+
+    const Experiment = struct {
+        elements: []Element,
+    };
+
+    const yml_file_location = try std.fs.cwd().realpathAlloc(
+        std.testing.allocator,
+        "./resources/yaml-test-suite/J5UC.yml",
+    );
+    defer std.testing.allocator.free(yml_file_location);
+
+    var ymlz = try Ymlz(Experiment).init(std.testing.allocator);
+    const result = try ymlz.loadFile(yml_file_location);
+    defer ymlz.deinit(result);
+
+    std.debug.print("elements: {}\n", .{result.elements.len});
+
+    const element = result.elements[0];
+
+    try expect(std.mem.eql(u8, element.name, "Multiple Pair Block Mapping"));
+    try expect(std.mem.eql(u8, element.from, "https://github.com/ingydotnet/yaml-pegex-pm/blob/master/test/mapping.tml"));
+}
