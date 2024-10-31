@@ -294,7 +294,8 @@ pub fn Ymlz(comptime Destination: type) type {
                 try self.allocations.append(line);
 
                 // TODO: Need to fix this comments can start not only from index 0.
-                if (line.len == 0 or line[0] == '#') {
+                // TODO: What shoud really happen if a file has '---' which means a new document in the same file.
+                if (line.len == 0 or line[0] == '#' or std.mem.eql(u8, "---", line)) {
                     // Skipping comments
                     return self.readLine();
                 }
