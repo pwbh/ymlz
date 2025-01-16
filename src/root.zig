@@ -11,6 +11,20 @@ const expect = std.testing.expect;
 const INDENT_SIZE = 2;
 const MAX_READ_SIZE = std.math.maxInt(usize);
 
+fn isComment(line: []const u8) bool {
+    for (line) |char| {
+        if (char == '#') {
+            return true;
+        }
+
+        if (char != ' ') {
+            return false;
+        }
+    }
+
+    return false;
+}
+
 const Dictionary = struct {
     key: []const u8,
     values: [][]const u8,
@@ -278,7 +292,7 @@ pub fn Ymlz(comptime Destination: type) type {
             return line;
         }
 
-        fn readLine(self: *Self) !?[]const u8 {
+        fn readRawLine(self: *Self) !?[]const u8 {
             if (self.suspense.get()) |s| {
                 return s;
             }
@@ -292,10 +306,18 @@ pub fn Ymlz(comptime Destination: type) type {
 
             if (raw_line) |line| {
                 try self.allocations.append(line);
+                return line;
+            }
 
-                // TODO: Need to fix this comments can start not only from index 0.
+            return null;
+        }
+
+        fn readLine(self: *Self) !?[]const u8 {
+            const raw_line = try self.readRawLine();
+
+            if (raw_line) |line| {
                 // TODO: What shoud really happen if a file has '---' which means a new document in the same file.
-                if (line.len == 0 or line[0] == '#' or std.mem.eql(u8, "---", line)) {
+                if (isComment(line) or std.mem.eql(u8, "---", line)) {
                     // Skipping comments
                     return self.readLine();
                 }
@@ -314,6 +336,10 @@ pub fn Ymlz(comptime Destination: type) type {
         }
 
         fn isNewExpression(self: *Self, raw_value_line: []const u8, depth: usize) bool {
+            if (raw_value_line.len == 0) {
+                return false;
+            }
+
             const indent_depth = self.getIndentDepth(depth);
 
             for (0..indent_depth) |d| {
@@ -393,7 +419,7 @@ pub fn Ymlz(comptime Destination: type) type {
             defer list.deinit();
 
             while (true) {
-                const raw_value_line = try self.readLine() orelse break;
+                const raw_value_line = try self.readRawLine() orelse break;
 
                 if (self.isNewExpression(raw_value_line, depth)) {
                     try self.suspense.set(raw_value_line);

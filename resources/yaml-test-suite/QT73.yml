@@ -1,5 +1,7 @@
 elements:
+  # This comment is not at the beginning of a line.
   - name: Comment and document-end marker
+    # Neither is this comment.
     from: "@perlpunk"
     tags: comment footer
     yaml: |
