@@ -11,20 +11,6 @@ const expect = std.testing.expect;
 const INDENT_SIZE = 2;
 const MAX_READ_SIZE = std.math.maxInt(usize);
 
-fn isComment(line: []const u8) bool {
-    for (line) |char| {
-        if (char == '#') {
-            return true;
-        }
-
-        if (char != ' ') {
-            return false;
-        }
-    }
-
-    return false;
-}
-
 const Dictionary = struct {
     key: []const u8,
     values: [][]const u8,
@@ -164,6 +150,22 @@ pub fn Ymlz(comptime Destination: type) type {
                     }
                 }
             }
+        }
+
+        fn isComment(self: *Self, line: []const u8) bool {
+            _ = self;
+
+            for (line) |char| {
+                if (char == '#') {
+                    return true;
+                }
+
+                if (char != ' ') {
+                    return false;
+                }
+            }
+
+            return false;
         }
 
         fn getIndentDepth(self: *Self, depth: usize) usize {
@@ -317,7 +319,7 @@ pub fn Ymlz(comptime Destination: type) type {
 
             if (raw_line) |line| {
                 // TODO: What shoud really happen if a file has '---' which means a new document in the same file.
-                if (isComment(line) or std.mem.eql(u8, "---", line)) {
+                if (self.isComment(line) or std.mem.eql(u8, "---", line)) {
                     // Skipping comments
                     return self.readLine();
                 }
