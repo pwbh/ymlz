@@ -49,168 +49,168 @@ test "Multiple elements in yaml file" {
     try expect(result.elements[1].float_val == 56.123);
 }
 
-// test "98YD with bools" {
-//     const Element = struct {
-//         name: []const u8,
-//         from: []const u8,
-//         tags: []const u8,
-//         yaml: []const u8,
-//         tree: []const u8,
-//         json: []const u8,
-//         dump: []const u8,
-//         bool_val: bool,
-//         bool_val_2: bool,
-//         bool_val_with_spaces: bool,
-//     };
+test "98YD with bools" {
+    const Element = struct {
+        name: []const u8,
+        from: []const u8,
+        tags: []const u8,
+        yaml: []const u8,
+        tree: []const u8,
+        json: []const u8,
+        dump: []const u8,
+        bool_val: bool,
+        bool_val_2: bool,
+        bool_val_with_spaces: bool,
+    };
 
-//     const Experiment = struct {
-//         elements: []Element,
-//     };
+    const Experiment = struct {
+        elements: []Element,
+    };
 
-//     const yml_file_location = try std.fs.cwd().realpathAlloc(
-//         std.testing.allocator,
-//         "./resources/yaml-test-suite/98YD-mixed.yml",
-//     );
-//     defer std.testing.allocator.free(yml_file_location);
+    const yml_file_location = try std.fs.cwd().realpathAlloc(
+        std.testing.allocator,
+        "./resources/yaml-test-suite/98YD-mixed.yml",
+    );
+    defer std.testing.allocator.free(yml_file_location);
 
-//     var ymlz = try Ymlz(Experiment).init(std.testing.allocator);
-//     const result = try ymlz.loadFile(yml_file_location);
-//     defer ymlz.deinit(result);
+    var ymlz = try Ymlz(Experiment).init(std.testing.allocator);
+    const result = try ymlz.loadFile(yml_file_location);
+    defer ymlz.deinit(result);
 
-//     const element = result.elements[0];
+    const element = result.elements[0];
 
-//     // Test booleans
-//     try expect(element.bool_val == true);
-//     try expect(element.bool_val_2 == false);
-//     try expect(element.bool_val_with_spaces == true);
+    // Test booleans
+    try expect(element.bool_val == true);
+    try expect(element.bool_val_2 == false);
+    try expect(element.bool_val_with_spaces == true);
 
-//     try expect(std.mem.eql(u8, element.name, "Spec Example 5.5. Comment Indicator"));
-//     try expect(element.dump.len == 0);
-// }
+    try expect(std.mem.eql(u8, element.name, "Spec Example 5.5. Comment Indicator"));
+    try expect(element.dump.len == 0);
+}
 
-// test "98YD" {
-//     const Element = struct {
-//         name: []const u8,
-//         from: []const u8,
-//         tags: []const u8,
-//         yaml: []const u8,
-//         tree: []const u8,
-//         json: []const u8,
-//         dump: []const u8,
-//     };
+test "98YD" {
+    const Element = struct {
+        name: []const u8,
+        from: []const u8,
+        tags: []const u8,
+        yaml: []const u8,
+        tree: []const u8,
+        json: []const u8,
+        dump: []const u8,
+    };
 
-//     const Experiment = struct {
-//         elements: []Element,
-//     };
+    const Experiment = struct {
+        elements: []Element,
+    };
 
-//     const yml_file_location = try std.fs.cwd().realpathAlloc(
-//         std.testing.allocator,
-//         "./resources/yaml-test-suite/98YD.yml",
-//     );
-//     defer std.testing.allocator.free(yml_file_location);
+    const yml_file_location = try std.fs.cwd().realpathAlloc(
+        std.testing.allocator,
+        "./resources/yaml-test-suite/98YD.yml",
+    );
+    defer std.testing.allocator.free(yml_file_location);
 
-//     var ymlz = try Ymlz(Experiment).init(std.testing.allocator);
-//     const result = try ymlz.loadFile(yml_file_location);
-//     defer ymlz.deinit(result);
+    var ymlz = try Ymlz(Experiment).init(std.testing.allocator);
+    const result = try ymlz.loadFile(yml_file_location);
+    defer ymlz.deinit(result);
 
-//     const element = result.elements[0];
+    const element = result.elements[0];
 
-//     try expect(std.mem.eql(u8, element.name, "Spec Example 5.5. Comment Indicator"));
-//     // dump: ""
-//     try expect(element.dump.len == 0);
-// }
+    try expect(std.mem.eql(u8, element.name, "Spec Example 5.5. Comment Indicator"));
+    // dump: ""
+    try expect(element.dump.len == 0);
+}
 
-// test "CC74" {
-//     // test
-//     const Element = struct {
-//         name: []const u8,
-//         from: []const u8,
-//         tags: []const u8,
-//         yaml: []const u8,
-//         tree: []const u8,
-//         json: []const u8,
-//         dump: []const u8,
-//     };
+test "CC74" {
+    // test
+    const Element = struct {
+        name: []const u8,
+        from: []const u8,
+        tags: []const u8,
+        yaml: []const u8,
+        tree: []const u8,
+        json: []const u8,
+        dump: []const u8,
+    };
 
-//     const Experiment = struct {
-//         elements: []Element,
-//     };
+    const Experiment = struct {
+        elements: []Element,
+    };
 
-//     const yml_file_location = try std.fs.cwd().realpathAlloc(
-//         std.testing.allocator,
-//         "./resources/yaml-test-suite/CC74.yml",
-//     );
-//     defer std.testing.allocator.free(yml_file_location);
+    const yml_file_location = try std.fs.cwd().realpathAlloc(
+        std.testing.allocator,
+        "./resources/yaml-test-suite/CC74.yml",
+    );
+    defer std.testing.allocator.free(yml_file_location);
 
-//     var ymlz = try Ymlz(Experiment).init(std.testing.allocator);
-//     const result = try ymlz.loadFile(yml_file_location);
-//     defer ymlz.deinit(result);
+    var ymlz = try Ymlz(Experiment).init(std.testing.allocator);
+    const result = try ymlz.loadFile(yml_file_location);
+    defer ymlz.deinit(result);
 
-//     const element = result.elements[0];
+    const element = result.elements[0];
 
-//     try expect(std.mem.eql(u8, element.name, "Spec Example 6.20. Tag Handles"));
-//     try expect(std.mem.eql(u8, element.tree, "+STR\n +DOC ---\n  =VAL <tag:example.com,2000:app/foo> \"bar\n -DOC\n-STR"));
-//     try expect(std.mem.eql(u8, element.dump, "--- !<tag:example.com,2000:app/foo> \"bar\"\n"));
-// }
+    try expect(std.mem.eql(u8, element.name, "Spec Example 6.20. Tag Handles"));
+    try expect(std.mem.eql(u8, element.tree, "+STR\n +DOC ---\n  =VAL <tag:example.com,2000:app/foo> \"bar\n -DOC\n-STR"));
+    try expect(std.mem.eql(u8, element.dump, "--- !<tag:example.com,2000:app/foo> \"bar\"\n"));
+}
 
-// test "F6MC" {
-//     const Element = struct {
-//         name: []const u8,
-//         from: []const u8,
-//         tags: []const u8,
-//         yaml: []const u8,
-//         tree: []const u8,
-//         json: []const u8,
-//         emit: []const u8,
-//     };
+test "F6MC" {
+    const Element = struct {
+        name: []const u8,
+        from: []const u8,
+        tags: []const u8,
+        yaml: []const u8,
+        tree: []const u8,
+        json: []const u8,
+        emit: []const u8,
+    };
 
-//     const Experiment = struct {
-//         elements: []Element,
-//     };
+    const Experiment = struct {
+        elements: []Element,
+    };
 
-//     const yml_file_location = try std.fs.cwd().realpathAlloc(
-//         std.testing.allocator,
-//         "./resources/yaml-test-suite/F6MC.yml",
-//     );
-//     defer std.testing.allocator.free(yml_file_location);
+    const yml_file_location = try std.fs.cwd().realpathAlloc(
+        std.testing.allocator,
+        "./resources/yaml-test-suite/F6MC.yml",
+    );
+    defer std.testing.allocator.free(yml_file_location);
 
-//     var ymlz = try Ymlz(Experiment).init(std.testing.allocator);
-//     const result = try ymlz.loadFile(yml_file_location);
-//     defer ymlz.deinit(result);
+    var ymlz = try Ymlz(Experiment).init(std.testing.allocator);
+    const result = try ymlz.loadFile(yml_file_location);
+    defer ymlz.deinit(result);
 
-//     const element = result.elements[0];
+    const element = result.elements[0];
 
-//     try expect(std.mem.eql(u8, element.name, "More indented lines at the beginning of folded block scalars"));
-//     try expect(std.mem.eql(u8, element.json, "{\n  \"a\": \" more indented\\nregular\\n\",\n  \"b\": \"\\n\\n more indented\\nregular\\n\"\n}"));
-// }
+    try expect(std.mem.eql(u8, element.name, "More indented lines at the beginning of folded block scalars"));
+    try expect(std.mem.eql(u8, element.json, "{\n  \"a\": \" more indented\\nregular\\n\",\n  \"b\": \"\\n\\n more indented\\nregular\\n\"\n}"));
+}
 
-// test "QT73" {
-//     const Element = struct {
-//         name: []const u8,
-//         from: []const u8,
-//         tags: []const u8,
-//         yaml: []const u8,
-//         tree: []const u8,
-//         json: []const u8,
-//         dump: []const u8,
-//     };
+test "QT73" {
+    const Element = struct {
+        name: []const u8,
+        from: []const u8,
+        tags: []const u8,
+        yaml: []const u8,
+        tree: []const u8,
+        json: []const u8,
+        dump: []const u8,
+    };
 
-//     const Experiment = struct {
-//         elements: []Element,
-//     };
+    const Experiment = struct {
+        elements: []Element,
+    };
 
-//     const yml_file_location = try std.fs.cwd().realpathAlloc(
-//         std.testing.allocator,
-//         "./resources/yaml-test-suite/QT73.yml",
-//     );
-//     defer std.testing.allocator.free(yml_file_location);
+    const yml_file_location = try std.fs.cwd().realpathAlloc(
+        std.testing.allocator,
+        "./resources/yaml-test-suite/QT73.yml",
+    );
+    defer std.testing.allocator.free(yml_file_location);
 
-//     var ymlz = try Ymlz(Experiment).init(std.testing.allocator);
-//     const result = try ymlz.loadFile(yml_file_location);
-//     defer ymlz.deinit(result);
+    var ymlz = try Ymlz(Experiment).init(std.testing.allocator);
+    const result = try ymlz.loadFile(yml_file_location);
+    defer ymlz.deinit(result);
 
-//     const element = result.elements[0];
+    const element = result.elements[0];
 
-//     try expect(std.mem.eql(u8, element.name, "Comment and document-end marker"));
-//     try expect(std.mem.eql(u8, element.from, "@perlpunk"));
-// }
+    try expect(std.mem.eql(u8, element.name, "Comment and document-end marker"));
+    try expect(std.mem.eql(u8, element.from, "@perlpunk"));
+}
