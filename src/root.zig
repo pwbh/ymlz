@@ -185,7 +185,11 @@ pub fn Ymlz(comptime Destination: type) type {
 
         fn getFieldName(self: *Self, raw_line: []const u8, depth: usize) ?[]const u8 {
             _ = self;
+            std.debug.print("Raw: {s}\n", .{raw_line});
             const indent = depth * INDENT_SIZE;
+            if (indent >= raw_line.len) {
+                return null;
+            }
             const line = raw_line[indent..];
             var splitted = std.mem.split(u8, line, ":");
             return splitted.next();
@@ -203,10 +207,11 @@ pub fn Ymlz(comptime Destination: type) type {
                     break;
                 };
 
-                const field_name = self.getFieldName(raw_line, depth) orelse "";
+                const field_name = self.getFieldName(raw_line, depth) orelse {
+                    continue;
+                };
 
-                std.debug.print("\nIn {s}\n", .{@typeName(T)});
-                std.debug.print("Trying to get field {s}\n", .{field_name});
+                std.debug.print("{s}\n", .{field_name});
 
                 inline for (destination_reflaction.Struct.fields) |field| {
                     if (std.mem.eql(u8, field.name, field_name)) {
@@ -403,11 +408,12 @@ pub fn Ymlz(comptime Destination: type) type {
                 try self.suspense.set(raw_value_line);
 
                 if (self.isNewExpression(raw_value_line, depth)) {
-                    std.debug.print("NEW EXPRESSION!???\n", .{});
+                    // std.debug.print("NEW EXPRESSION!???\n", .{});
+                    try self.suspense.set(raw_value_line);
                     break;
                 }
 
-                std.debug.print("PARSING ARRAY ITEM\n", .{});
+                // std.debug.print("PARSING ARRAY ITEM\n", .{});
                 const result = try self.parse(T, depth + 1);
 
                 try list.append(result);
@@ -787,102 +793,118 @@ test {
 //     try expect(result.tutorial[2].born == 1996);
 // }
 
-// test "should be able to parse arrays and arrays in arrays" {
-//     const ImageSamplerPairs = struct {
-//         slot: u32,
-//         name: []const u8,
-//         image_name: []const u8,
-//         sampler_name: []const u8,
-//     };
+test "should be able to parse arrays and arrays in arrays" {
+    const ImageSamplerPairs = struct {
+        slot: u32,
+        name: []const u8,
+        image_name: []const u8,
+        sampler_name: []const u8,
+    };
 
-//     const Sampler = struct {
-//         slot: u32,
-//         name: []const u8,
-//         sampler_type: []const u8,
-//     };
+    const Sampler = struct {
+        slot: u32,
+        name: []const u8,
+        sampler_type: []const u8,
+    };
 
-//     const Image = struct {
-//         slot: u64,
-//         name: []const u8,
-//         multisampled: bool,
-//         type: []const u8,
-//         sample_type: []const u8,
-//     };
+    const Image = struct {
+        slot: u64,
+        name: []const u8,
+        multisampled: bool,
+        type: []const u8,
+        sample_type: []const u8,
+    };
 
-//     const Uniform = struct {
-//         name: []const u8,
-//         type: []const u8,
-//         array_count: i32,
-//         offset: usize,
-//     };
+    const Uniform = struct {
+        name: []const u8,
+        type: []const u8,
+        array_count: i32,
+        offset: usize,
+    };
 
-//     const UniformBlock = struct {
-//         slot: u64,
-//         size: u64,
-//         struct_name: []const u8,
-//         inst_name: []const u8,
-//         uniforms: []Uniform,
-//     };
+    const UniformBlock = struct {
+        slot: u64,
+        size: u64,
+        struct_name: []const u8,
+        inst_name: []const u8,
+        uniforms: []Uniform,
+    };
 
-//     const Input = struct {
-//         slot: u64,
-//         name: []const u8,
-//         sem_name: []const u8,
-//         sem_index: usize,
-//     };
+    const Input = struct {
+        slot: u64,
+        name: []const u8,
+        sem_name: []const u8,
+        sem_index: usize,
+    };
 
-//     const Details = struct {
-//         path: []const u8,
-//         is_binary: bool,
-//         entry_point: []const u8,
-//         inputs: []Input,
-//         outputs: []Input,
-//         uniform_blocks: []UniformBlock,
-//         images: ?[]Image,
-//         samplers: ?[]Sampler,
-//         image_sampler_pairs: ?[]ImageSamplerPairs,
-//     };
+    const VsDetails = struct {
+        path: []const u8,
+        is_binary: bool,
+        entry_point: []const u8,
+        inputs: []Input,
+        outputs: []Input,
+        uniform_blocks: []UniformBlock,
+        images: ?[]Image,
+        samplers: ?[]Sampler,
+        image_sampler_pairs: ?[]ImageSamplerPairs,
+    };
 
-//     const Program = struct {
-//         name: []const u8,
-//         vs: Details,
-//         fs: Details,
-//     };
+    const FsDetails = struct {
+        path: []const u8,
+        is_binary: bool,
+        entry_point: []const u8,
+        inputs: []Input,
+        outputs: []Input,
+        uniform_blocks: []UniformBlock,
+        images: ?[]Image,
+        samplers: ?[]Sampler,
+        image_sampler_pairs: ?[]ImageSamplerPairs,
+    };
 
-//     const Shader = struct {
-//         slang: []const u8,
-//         programs: []Program,
-//     };
+    const Program = struct {
+        name: []const u8,
+        vs: VsDetails,
+        fs: FsDetails,
+    };
 
-//     const Experiment = struct {
-//         shaders: []Shader,
-//     };
+    const Shader = struct {
+        slang: []const u8,
+        programs: []Program,
+    };
 
-//     const yml_path = try std.fs.cwd().realpathAlloc(
-//         std.testing.allocator,
-//         "./resources/shader.yml",
-//     );
-//     defer std.testing.allocator.free(yml_path);
+    const Experiment = struct {
+        shaders: []Shader,
+    };
 
-//     var ymlz = try Ymlz(Experiment).init(std.testing.allocator);
-//     const result = try ymlz.loadFile(yml_path);
-//     defer ymlz.deinit(result);
+    const yml_path = try std.fs.cwd().realpathAlloc(
+        std.testing.allocator,
+        "./resources/shader.yml",
+    );
+    defer std.testing.allocator.free(yml_path);
 
-//     try expect(std.mem.eql(u8, result.shaders[0].programs[0].fs.uniform_blocks[0].uniforms[0].name, "u_color_override"));
+    var ymlz = try Ymlz(Experiment).init(std.testing.allocator);
+    const result = try ymlz.loadFile(yml_path);
+    defer ymlz.deinit(result);
 
-//     try expect(std.mem.eql(u8, result.shaders[0].slang, "glsl430"));
-//     try expect(result.shaders[0].programs[0].vs.images == null);
-//     try expect(result.shaders[0].programs[0].fs.images != null);
-//     try expect(result.shaders[0].programs[0].fs.images.?[0].slot == 0);
-//     try expect(std.mem.eql(u8, result.shaders[0].programs[0].fs.images.?[0].sample_type, "float"));
+    std.debug.print("\n\n{any}\n\n", .{result.shaders[0].programs[0].fs});
 
-//     try expect(std.mem.eql(u8, result.shaders[6].slang, "wgsl"));
-//     try expect(std.mem.eql(u8, result.shaders[6].programs[0].name, "default"));
-//     try expect(result.shaders[6].programs[0].vs.image_sampler_pairs == null);
-//     try expect(result.shaders[6].programs[0].fs.image_sampler_pairs != null);
-//     try expect(result.shaders[6].programs[0].fs.image_sampler_pairs.?[0].slot == 0);
-//     try expect(std.mem.eql(u8, result.shaders[6].programs[0].fs.image_sampler_pairs.?[0].sampler_name, "smp"));
-// }
+    try expect(std.mem.eql(u8, result.shaders[0].programs[0].fs.uniform_blocks[0].uniforms[0].name, "u_color_override"));
+
+    try expect(std.mem.eql(u8, result.shaders[0].slang, "glsl430"));
+    try expect(result.shaders[0].programs[0].vs.images == null);
+    try expect(result.shaders[0].programs[0].fs.images != null);
+    try expect(result.shaders[0].programs[0].fs.images.?[0].slot == 0);
+    try expect(std.mem.eql(u8, result.shaders[0].programs[0].fs.images.?[0].sample_type, "float"));
+
+    try expect(std.mem.eql(u8, result.shaders[6].slang, "wgsl"));
+    try expect(std.mem.eql(u8, result.shaders[6].programs[0].name, "default"));
+    try expect(result.shaders[6].programs[0].vs.image_sampler_pairs == null);
+    try expect(result.shaders[6].programs[0].fs.image_sampler_pairs != null);
+    try expect(result.shaders[6].programs[0].fs.image_sampler_pairs.?[0].slot == 0);
+    try expect(std.mem.eql(u8, result.shaders[6].programs[0].fs.image_sampler_pairs.?[0].sampler_name, "smp"));
+
+    std.debug.print("Right before de-init", .{});
+}
 
 // test "should be able to to skip optional fields if non-existent in the parsed file" {
 //     const Subject = struct {
