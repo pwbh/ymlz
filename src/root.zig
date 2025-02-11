@@ -93,9 +93,9 @@ pub fn Ymlz(comptime Destination: type) type {
 
         /// Allows passing a reader which will be used to parse your raw yml bytes.
         pub fn loadReader(self: *Self, reader: AnyReader) !Destination {
-            // if (@typeInfo(Destination) != .Struct) {
-            //     @panic("ymlz only able to load yml files into structs");
-            // }
+            if (@typeInfo(Destination) != .@"struct") {
+                @panic("ymlz only able to load yml files into structs");
+            }
 
             self.reader = reader;
 
