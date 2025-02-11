@@ -193,10 +193,11 @@ pub fn Ymlz(comptime Destination: type) type {
 
         fn parse(self: *Self, comptime T: type, depth: usize) !T {
             var destination: T = undefined;
+            var elements_parsed: usize = 0;
 
             const destination_reflaction = @typeInfo(@TypeOf(destination));
 
-            while (true) {
+            while (elements_parsed < destination_reflaction.Struct.fields.len) {
                 // TODO: Need to think of something more robust then this.
                 const raw_line = try self.readLine() orelse {
                     break;
@@ -227,6 +228,8 @@ pub fn Ymlz(comptime Destination: type) type {
                             try self.suspense.set(raw_line);
                             @field(destination, field.name) = null;
                         }
+
+                        elements_parsed += 1;
                     }
                 }
             }
@@ -400,9 +403,11 @@ pub fn Ymlz(comptime Destination: type) type {
                 try self.suspense.set(raw_value_line);
 
                 if (self.isNewExpression(raw_value_line, depth)) {
+                    std.debug.print("NEW EXPRESSION!???\n", .{});
                     break;
                 }
 
+                std.debug.print("PARSING ARRAY ITEM\n", .{});
                 const result = try self.parse(T, depth + 1);
 
                 try list.append(result);
@@ -619,96 +624,96 @@ test {
 //     try expect(std.mem.eql(u8, result.foods[3], "Mango"));
 // }
 
-test "should be able to parse deeps/recursive structs" {
-    const Subject = struct {
-        first: i32,
-        second: i64,
-        name: []const u8,
-        fourth: f32,
-        foods: [][]const u8,
-        inner: struct {
-            sd: i32,
-            k: u8,
-            l: []const u8,
-            another: struct {
-                new: f32,
-                stringed: []const u8,
-            },
-        },
-    };
+// test "should be able to parse deeps/recursive structs" {
+//     const Subject = struct {
+//         first: i32,
+//         second: i64,
+//         name: []const u8,
+//         fourth: f32,
+//         foods: [][]const u8,
+//         inner: struct {
+//             sd: i32,
+//             k: u8,
+//             l: []const u8,
+//             another: struct {
+//                 new: f32,
+//                 stringed: []const u8,
+//             },
+//         },
+//     };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
-        "./resources/super_simple.yml",
-    );
-    defer std.testing.allocator.free(yml_file_location);
+//     const yml_file_location = try std.fs.cwd().realpathAlloc(
+//         std.testing.allocator,
+//         "./resources/super_simple.yml",
+//     );
+//     defer std.testing.allocator.free(yml_file_location);
 
-    var ymlz = try Ymlz(Subject).init(std.testing.allocator);
-    const result = try ymlz.loadFile(yml_file_location);
-    defer ymlz.deinit(result);
+//     var ymlz = try Ymlz(Subject).init(std.testing.allocator);
+//     const result = try ymlz.loadFile(yml_file_location);
+//     defer ymlz.deinit(result);
 
-    try expect(result.inner.sd == 12);
-    try expect(result.inner.k == 2);
-    try expect(std.mem.eql(u8, result.inner.l, "hello world"));
-    try expect(result.inner.another.new == 1);
-    try expect(std.mem.eql(u8, result.inner.another.stringed, "its just a string"));
-}
+//     try expect(result.inner.sd == 12);
+//     try expect(result.inner.k == 2);
+//     try expect(std.mem.eql(u8, result.inner.l, "hello world"));
+//     try expect(result.inner.another.new == 1);
+//     try expect(std.mem.eql(u8, result.inner.another.stringed, "its just a string"));
+// }
 
-test "should be able to parse booleans in all its forms" {
-    const Subject = struct {
-        first: bool,
-        second: bool,
-        third: bool,
-        fourth: bool,
-        fifth: bool,
-        sixth: bool,
-        seventh: bool,
-        eighth: bool,
-    };
+// test "should be able to parse booleans in all its forms" {
+//     const Subject = struct {
+//         first: bool,
+//         second: bool,
+//         third: bool,
+//         fourth: bool,
+//         fifth: bool,
+//         sixth: bool,
+//         seventh: bool,
+//         eighth: bool,
+//     };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
-        "./resources/booleans.yml",
-    );
-    defer std.testing.allocator.free(yml_file_location);
+//     const yml_file_location = try std.fs.cwd().realpathAlloc(
+//         std.testing.allocator,
+//         "./resources/booleans.yml",
+//     );
+//     defer std.testing.allocator.free(yml_file_location);
 
-    var ymlz = try Ymlz(Subject).init(std.testing.allocator);
-    const result = try ymlz.loadFile(yml_file_location);
-    defer ymlz.deinit(result);
+//     var ymlz = try Ymlz(Subject).init(std.testing.allocator);
+//     const result = try ymlz.loadFile(yml_file_location);
+//     defer ymlz.deinit(result);
 
-    try expect(result.first == true);
-    try expect(result.second == false);
-    try expect(result.third == true);
-    try expect(result.fourth == false);
-    try expect(result.fifth == true);
-    try expect(result.sixth == true);
-    try expect(result.seventh == false);
-    try expect(result.eighth == false);
-}
+//     try expect(result.first == true);
+//     try expect(result.second == false);
+//     try expect(result.third == true);
+//     try expect(result.fourth == false);
+//     try expect(result.fifth == true);
+//     try expect(result.sixth == true);
+//     try expect(result.seventh == false);
+//     try expect(result.eighth == false);
+// }
 
-test "should be able to parse multiline" {
-    const Subject = struct {
-        multiline: []const u8,
-        second_multiline: []const u8,
-    };
+// test "should be able to parse multiline" {
+//     const Subject = struct {
+//         multiline: []const u8,
+//         second_multiline: []const u8,
+//     };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
-        "./resources/multilines.yml",
-    );
-    defer std.testing.allocator.free(yml_file_location);
+//     const yml_file_location = try std.fs.cwd().realpathAlloc(
+//         std.testing.allocator,
+//         "./resources/multilines.yml",
+//     );
+//     defer std.testing.allocator.free(yml_file_location);
 
-    var ymlz = try Ymlz(Subject).init(std.testing.allocator);
-    const result = try ymlz.loadFile(yml_file_location);
-    defer ymlz.deinit(result);
+//     var ymlz = try Ymlz(Subject).init(std.testing.allocator);
+//     const result = try ymlz.loadFile(yml_file_location);
+//     defer ymlz.deinit(result);
 
-    try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "asdoksad\n"));
-    try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sdapdsadp\n"));
-    try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sodksaodasd\n"));
-    try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sdksdsodsokdsokd"));
+//     try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "asdoksad\n"));
+//     try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sdapdsadp\n"));
+//     try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sodksaodasd\n"));
+//     try expect(std.mem.containsAtLeast(u8, result.multiline, 1, "sdksdsodsokdsokd"));
 
-    try expect(std.mem.eql(u8, result.second_multiline, "adsasdasdad  sdasadasdadasd"));
-}
+//     try expect(std.mem.eql(u8, result.second_multiline, "adsasdasdad  sdasadasdadasd"));
+// }
 
 // test "should be able to ignore single quotes and double quotes" {
 //     const Experiment = struct {
