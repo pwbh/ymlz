@@ -184,57 +184,69 @@ pub fn Ymlz(comptime Destination: type) type {
         }
 
         fn getFieldName(self: *Self, raw_line: []const u8, depth: usize) ?[]const u8 {
-            const indent_depth = self.getIndentDepth(depth);
-            const line = raw_line[indent_depth..];
+            _ = self;
+            const indent = depth * INDENT_SIZE;
+            const line = raw_line[indent..];
             var splitted = std.mem.split(u8, line, ":");
-
-            // We need to strip the field name in yaml from all spaces because we can't know it's
-            // depth until we matched the field name to the name in the defined struct.
-            if (splitted.next()) |key| {
-                const r = std.mem.trim(u8, key, "-");
-                const t = std.mem.trim(u8, r, " ");
-                const p = std.mem.trim(u8, t, "- ");
-                return p;
-            }
-
-            return null;
+            return splitted.next();
         }
 
         fn parse(self: *Self, comptime T: type, depth: usize) !T {
             var destination: T = undefined;
-            var elements_parsed: usize = 0;
-
             const destination_reflaction = @typeInfo(@TypeOf(destination));
-            const struct_fields_count = destination_reflaction.Struct.fields.len;
+            var totalFieldsParsed: usize = 0;
 
-            outer: while (elements_parsed < struct_fields_count) {
-                // TODO: Need to think of something more robust then this.
+            std.debug.print("{s}:\n", .{@typeName(T)});
+
+            while (totalFieldsParsed < destination_reflaction.Struct.fields.len) {
                 const raw_line = try self.readLine() orelse {
-                    break :outer;
+                    break;
                 };
 
-                const field_name = self.getFieldName(raw_line, depth) orelse "";
+                const field_name = self.getFieldName(raw_line, depth) orelse {
+                    @panic(("Failed to get field name from yml file."));
+                };
 
-                std.debug.print("{d}|{s}\n", .{ self.getIndentDepth(depth), field_name });
+                std.debug.print("{d}|{s}|{s}\n", .{ depth, field_name, raw_line });
+
+                var found_field = false;
 
                 inline for (destination_reflaction.Struct.fields) |field| {
+                    const type_info = @typeInfo(field.type);
+                    const is_optional_field = type_info == .Optional;
+
                     if (std.mem.eql(u8, field.name, field_name)) {
-                        const type_info = @typeInfo(field.type);
-                        const actual_type_info = if (type_info == .Optional) @typeInfo(type_info.Optional.child) else type_info;
+                        const is_optional_exists = (is_optional_field and try self.isOptionalFieldExists(field.name, raw_line, depth));
 
-                        try self.parseField(
-                            actual_type_info,
-                            &destination,
-                            field,
-                            raw_line,
-                            depth,
-                        );
+                        if (!is_optional_field or is_optional_exists) {
+                            const actual_type_info = if (is_optional_field) @typeInfo(type_info.Optional.child) else type_info;
 
-                        break;
+                            try self.parseField(
+                                actual_type_info,
+                                &destination,
+                                field,
+                                raw_line,
+                                depth,
+                            );
+                        } else {
+                            try self.suspense.set(raw_line);
+                            @field(destination, field.name) = null;
+                        }
+
+                        found_field = true;
+                    }
+
+                    if (!found_field and is_optional_field) {
+                        found_field = true;
+                        try self.suspense.set(raw_line);
                     }
                 }
 
-                elements_parsed += 1;
+                if (!found_field) {
+                    @panic("No such field in given yml file.");
+                } else {
+                    totalFieldsParsed += 1;
+                }
             }
 
             return destination;
@@ -348,9 +360,27 @@ pub fn Ymlz(comptime Destination: type) type {
             return null;
         }
 
+        fn isArrayEntryOnlyChar(raw_line: []const u8) bool {
+            // Trim whitespace to see if this is only the array start char
+            var trimmed_line = std.mem.trimLeft(u8, raw_line, " ");
+            trimmed_line = std.mem.trimRight(u8, trimmed_line, " ");
+            return std.mem.eql(u8, trimmed_line, "-");
+        }
+
         fn isNewExpression(self: *Self, raw_value_line: []const u8, depth: usize) bool {
+            if (raw_value_line.len == 0) {
+                return false;
+            }
+
             const indent_depth = self.getIndentDepth(depth);
-            return indent_depth >= raw_value_line.len or raw_value_line[indent_depth + 1] != ' ';
+
+            for (0..indent_depth) |d| {
+                if (raw_value_line[d] != ' ') {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         fn parseStringArrayExpression(self: *Self, comptime T: type, depth: usize) ![]T {
@@ -380,16 +410,21 @@ pub fn Ymlz(comptime Destination: type) type {
             while (true) {
                 const raw_value_line = try self.readLine() orelse break;
 
-                // Suspensing here to make sure the raw_value_line is not lost when parse() function is reading line.
+                // If this is only the array entry char '-', just eat this line
+                if (isArrayEntryOnlyChar(raw_value_line)) {
+                    continue;
+                }
+
                 try self.suspense.set(raw_value_line);
 
+                std.debug.print("parseArrayExpression: {s}\n", .{raw_value_line});
+
                 if (self.isNewExpression(raw_value_line, depth)) {
-                    std.debug.print("---\n", .{});
+                    std.debug.print("Breaking from depth {d} | {s}\n", .{ depth, @typeName(T) });
                     break;
                 }
 
-                // Inner struct to parse
-                const result = try self.parse(T, depth);
+                const result = try self.parse(T, depth + 1);
 
                 try list.append(result);
             }
@@ -550,10 +585,10 @@ pub fn Ymlz(comptime Destination: type) type {
     };
 }
 
-test {
-    _ = Suspense;
-    // _ = @import("tests.zig");
-}
+// test {
+//     _ = Suspense;
+//     _ = @import("tests.zig");
+// }
 
 // test "should be able to parse simple types" {
 //     const Subject = struct {
@@ -812,7 +847,7 @@ test "should be able to parse arrays and arrays in arrays" {
         sem_index: usize,
     };
 
-    const ShaderDetails = struct {
+    const Details = struct {
         path: []const u8,
         is_binary: bool,
         entry_point: []const u8,
@@ -826,8 +861,8 @@ test "should be able to parse arrays and arrays in arrays" {
 
     const Program = struct {
         name: []const u8,
-        vs: ShaderDetails,
-        fs: ShaderDetails,
+        vs: Details,
+        fs: Details,
     };
 
     const Shader = struct {
@@ -849,24 +884,20 @@ test "should be able to parse arrays and arrays in arrays" {
     const result = try ymlz.loadFile(yml_path);
     defer ymlz.deinit(result);
 
-    std.debug.print("{any}\n", .{result.shaders[0]});
-
     try expect(std.mem.eql(u8, result.shaders[0].programs[0].fs.uniform_blocks[0].uniforms[0].name, "u_color_override"));
 
-    // try expect(std.mem.eql(u8, result.shaders[0].slang, "glsl430"));
-    // try expect(result.shaders[0].programs[0].vs.images == null);
-    // try expect(result.shaders[0].programs[0].fs.images != null);
-    // try expect(result.shaders[0].programs[0].fs.images.?[0].slot == 0);
-    // try expect(std.mem.eql(u8, result.shaders[0].programs[0].fs.images.?[0].sample_type, "float"));
+    try expect(std.mem.eql(u8, result.shaders[0].slang, "glsl430"));
+    try expect(result.shaders[0].programs[0].vs.images == null);
+    try expect(result.shaders[0].programs[0].fs.images != null);
+    try expect(result.shaders[0].programs[0].fs.images.?[0].slot == 0);
+    try expect(std.mem.eql(u8, result.shaders[0].programs[0].fs.images.?[0].sample_type, "float"));
 
-    // try expect(std.mem.eql(u8, result.shaders[6].slang, "wgsl"));
-    // try expect(std.mem.eql(u8, result.shaders[6].programs[0].name, "default"));
-    // try expect(result.shaders[6].programs[0].vs.image_sampler_pairs == null);
-    // try expect(result.shaders[6].programs[0].fs.image_sampler_pairs != null);
-    // try expect(result.shaders[6].programs[0].fs.image_sampler_pairs.?[0].slot == 0);
-    // try expect(std.mem.eql(u8, result.shaders[6].programs[0].fs.image_sampler_pairs.?[0].sampler_name, "smp"));
-
-    std.debug.print("Right before de-init", .{});
+    try expect(std.mem.eql(u8, result.shaders[6].slang, "wgsl"));
+    try expect(std.mem.eql(u8, result.shaders[6].programs[0].name, "default"));
+    try expect(result.shaders[6].programs[0].vs.image_sampler_pairs == null);
+    try expect(result.shaders[6].programs[0].fs.image_sampler_pairs != null);
+    try expect(result.shaders[6].programs[0].fs.image_sampler_pairs.?[0].slot == 0);
+    try expect(std.mem.eql(u8, result.shaders[6].programs[0].fs.image_sampler_pairs.?[0].sampler_name, "smp"));
 }
 
 // test "should be able to to skip optional fields if non-existent in the parsed file" {
