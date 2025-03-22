@@ -24,8 +24,6 @@ test "Multiple elements in yaml file" {
     const result = try ymlz.loadFile(yml_file_location);
     defer ymlz.deinit(result);
 
-    // std.debug.print("\n\n{any}\n\n", .{result.elements});
-
     // Ensure both elements are parsed as expected and we have 2
     try expect(result.elements.len == 2);
 
