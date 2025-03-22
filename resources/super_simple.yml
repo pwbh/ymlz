@@ -9,9 +9,9 @@ foods:
   - Strawberry
   - Mango
 inner:
-  abcd: 12
+  sd: 12
   k: 2
-  l: hello world                 # comment somewhere
+  l: hello world # comment somewhere
   another:
     new: 1
     stringed: its just a string

@@ -183,39 +183,65 @@ pub fn Ymlz(comptime Destination: type) type {
             std.debug.print("{s}\t{s}\n", .{ field_name, raw_line });
         }
 
+        fn getFieldName(self: *Self, raw_line: []const u8, depth: usize) ?[]const u8 {
+            _ = self;
+            const indent = depth * INDENT_SIZE;
+            const line = raw_line[indent..];
+            var splitted = std.mem.split(u8, line, ":");
+            return splitted.next();
+        }
+
         fn parse(self: *Self, comptime T: type, depth: usize) !T {
             var destination: T = undefined;
-
             const destination_reflaction = @typeInfo(@TypeOf(destination));
+            var totalFieldsParsed: usize = 0;
 
+            // Make sure nullify all optional fields first
             inline for (destination_reflaction.Struct.fields) |field| {
-                const type_info = @typeInfo(field.type);
+                if (@typeInfo(field.type) == .Optional) {
+                    @field(destination, field.name) = null;
+                }
+            }
 
-                const is_optional_field = type_info == .Optional;
-
-                // TODO: Need to think of something more robust then this.
+            while (totalFieldsParsed < destination_reflaction.Struct.fields.len) {
                 const raw_line = try self.readLine() orelse {
-                    if (is_optional_field) {
-                        @field(destination, field.name) = null;
-                    }
                     break;
                 };
 
-                const is_optional_and_valid = (is_optional_field and try self.isOptionalFieldExists(field.name, raw_line, depth));
+                const field_name = self.getFieldName(raw_line, depth) orelse {
+                    @panic(("Failed to get field name from yml file."));
+                };
 
-                if (!is_optional_field or is_optional_and_valid) {
-                    const actual_type_info = if (is_optional_field) @typeInfo(type_info.Optional.child) else type_info;
+                var is_field_parsed = false;
 
-                    try self.parseField(
-                        actual_type_info,
-                        &destination,
-                        field,
-                        raw_line,
-                        depth,
-                    );
+                inline for (destination_reflaction.Struct.fields, 0..) |field, index| {
+                    const type_info = @typeInfo(field.type);
+                    const is_optional_field = type_info == .Optional;
+
+                    if (std.mem.eql(u8, field.name, field_name)) {
+                        const actual_type_info = if (is_optional_field) @typeInfo(type_info.Optional.child) else type_info;
+
+                        try self.parseField(
+                            actual_type_info,
+                            &destination,
+                            field,
+                            raw_line,
+                            depth,
+                        );
+
+                        is_field_parsed = true;
+                    }
+
+                    if (index == destination_reflaction.Struct.fields.len - 1 and !is_field_parsed and is_optional_field) {
+                        is_field_parsed = true;
+                        try self.suspense.set(raw_line);
+                    }
+                }
+
+                if (!is_field_parsed) {
+                    @panic("No such field in given yml file.");
                 } else {
-                    try self.suspense.set(raw_line);
-                    @field(destination, field.name) = null;
+                    totalFieldsParsed += 1;
                 }
             }
 
@@ -701,7 +727,7 @@ test "should be able to parse multiline" {
 test "should be able to ignore single quotes and double quotes" {
     const Experiment = struct {
         one: []const u8,
-        two: []const u8,
+        second: []const u8,
         three: []const u8,
     };
 
@@ -716,7 +742,7 @@ test "should be able to ignore single quotes and double quotes" {
     defer ymlz.deinit(result);
 
     try expect(std.mem.containsAtLeast(u8, result.one, 1, "testing without quotes"));
-    try expect(std.mem.containsAtLeast(u8, result.two, 1, "trying to see if it will break"));
+    try expect(std.mem.containsAtLeast(u8, result.second, 1, "trying to see if it will break"));
     try expect(std.mem.containsAtLeast(u8, result.three, 1, "hello world"));
 }
 
@@ -852,18 +878,16 @@ test "should be able to parse arrays and arrays in arrays" {
     defer ymlz.deinit(result);
 
     try expect(std.mem.eql(u8, result.shaders[0].programs[0].fs.uniform_blocks[0].uniforms[0].name, "u_color_override"));
-
     try expect(std.mem.eql(u8, result.shaders[0].slang, "glsl430"));
     try expect(result.shaders[0].programs[0].vs.images == null);
     try expect(result.shaders[0].programs[0].fs.images != null);
     try expect(result.shaders[0].programs[0].fs.images.?[0].slot == 0);
     try expect(std.mem.eql(u8, result.shaders[0].programs[0].fs.images.?[0].sample_type, "float"));
-
     try expect(std.mem.eql(u8, result.shaders[6].slang, "wgsl"));
     try expect(std.mem.eql(u8, result.shaders[6].programs[0].name, "default"));
     try expect(result.shaders[6].programs[0].vs.image_sampler_pairs == null);
-    try expect(result.shaders[6].programs[0].fs.image_sampler_pairs != null);
     try expect(result.shaders[6].programs[0].fs.image_sampler_pairs.?[0].slot == 0);
+    try expect(result.shaders[6].programs[0].fs.image_sampler_pairs != null);
     try expect(std.mem.eql(u8, result.shaders[6].programs[0].fs.image_sampler_pairs.?[0].sampler_name, "smp"));
 }
 

@@ -5,14 +5,14 @@ const expect = std.testing.expect;
 const Ymlz = @import("root.zig").Ymlz;
 
 test "Multiple elements in yaml file" {
-    const MultiElement = struct {
+    const Element = struct {
         name: []const u8,
         bool_val: bool,
         int_val: u8,
         float_val: f64,
     };
 
-    const Elements = struct { elements: []MultiElement };
+    const Elements = struct { elements: []Element };
 
     const yml_file_location = try std.fs.cwd().realpathAlloc(
         std.testing.allocator,
