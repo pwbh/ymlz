@@ -1,9 +1,9 @@
 elements:
-  - name: Example Name
+  - name: Example Name 
     bool_val: true
-    int_val: 0
+    int_val: 0 
     float_val: 3.14
   - name: Example Name 2
-    bool_val: false
-    int_val: 120
+    bool_val: false 
+    int_val: 120  
     float_val: 56.123
