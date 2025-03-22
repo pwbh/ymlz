@@ -878,25 +878,17 @@ test "should be able to parse arrays and arrays in arrays" {
     defer ymlz.deinit(result);
 
     try expect(std.mem.eql(u8, result.shaders[0].programs[0].fs.uniform_blocks[0].uniforms[0].name, "u_color_override"));
-
     try expect(std.mem.eql(u8, result.shaders[0].slang, "glsl430"));
-
-    std.debug.print("result.shaders[0].programs[0].fs.images: {any}\n", .{result.shaders[0].programs[0].fs.images});
-
     try expect(result.shaders[0].programs[0].vs.images == null);
-
     try expect(result.shaders[0].programs[0].fs.images != null);
-
     try expect(result.shaders[0].programs[0].fs.images.?[0].slot == 0);
     try expect(std.mem.eql(u8, result.shaders[0].programs[0].fs.images.?[0].sample_type, "float"));
-
-    // try expect(std.mem.eql(u8, result.shaders[6].slang, "wgsl"));
-    // try expect(std.mem.eql(u8, result.shaders[6].programs[0].name, "default"));
-    // try expect(result.shaders[6].programs[0].vs.image_sampler_pairs == null);
-    // try expect(result.shaders[6].programs[0].fs.image_sampler_pairs.?[0].slot == 0);
-    // try expect(result.shaders[6].programs[0].fs.image_sampler_pairs != null);
-    // try expect(std.mem.eql(u8, result.shaders[6].programs[0].fs.image_sampler_pairs.?[0].sampler_name, "smp"));
-
+    try expect(std.mem.eql(u8, result.shaders[6].slang, "wgsl"));
+    try expect(std.mem.eql(u8, result.shaders[6].programs[0].name, "default"));
+    try expect(result.shaders[6].programs[0].vs.image_sampler_pairs == null);
+    try expect(result.shaders[6].programs[0].fs.image_sampler_pairs.?[0].slot == 0);
+    try expect(result.shaders[6].programs[0].fs.image_sampler_pairs != null);
+    try expect(std.mem.eql(u8, result.shaders[6].programs[0].fs.image_sampler_pairs.?[0].sampler_name, "smp"));
 }
 
 // test "should be able to to skip optional fields if non-existent in the parsed file" {
