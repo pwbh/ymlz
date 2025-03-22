@@ -727,7 +727,7 @@ test "should be able to parse multiline" {
 test "should be able to ignore single quotes and double quotes" {
     const Experiment = struct {
         one: []const u8,
-        two: []const u8,
+        second: []const u8,
         three: []const u8,
     };
 
@@ -742,7 +742,7 @@ test "should be able to ignore single quotes and double quotes" {
     defer ymlz.deinit(result);
 
     try expect(std.mem.containsAtLeast(u8, result.one, 1, "testing without quotes"));
-    try expect(std.mem.containsAtLeast(u8, result.two, 1, "trying to see if it will break"));
+    try expect(std.mem.containsAtLeast(u8, result.second, 1, "trying to see if it will break"));
     try expect(std.mem.containsAtLeast(u8, result.three, 1, "hello world"));
 }
 
