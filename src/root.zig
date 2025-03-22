@@ -196,7 +196,7 @@ pub fn Ymlz(comptime Destination: type) type {
             const destination_reflaction = @typeInfo(@TypeOf(destination));
             var totalFieldsParsed: usize = 0;
 
-            std.debug.print("{s}:\n", .{@typeName(T)});
+            std.debug.print("{s}\n", .{@typeName((T))});
 
             while (totalFieldsParsed < destination_reflaction.Struct.fields.len) {
                 const raw_line = try self.readLine() orelse {
@@ -207,38 +207,38 @@ pub fn Ymlz(comptime Destination: type) type {
                     @panic(("Failed to get field name from yml file."));
                 };
 
-                std.debug.print("{d}|{s}|{s}\n", .{ depth, field_name, raw_line });
+                std.debug.print("{d}|{s}\n", .{ depth, field_name });
 
                 var found_field = false;
 
-                inline for (destination_reflaction.Struct.fields) |field| {
+                std.debug.print("Total fields: {d}\n", .{destination_reflaction.Struct.fields.len});
+
+                inline for (destination_reflaction.Struct.fields, 0..) |field, index| {
                     const type_info = @typeInfo(field.type);
                     const is_optional_field = type_info == .Optional;
 
+                    std.debug.print("{d}: {s} == {s} | {any}\n", .{ index, field.name, field_name, std.mem.eql(u8, field.name, field_name) });
+
                     if (std.mem.eql(u8, field.name, field_name)) {
-                        const is_optional_exists = (is_optional_field and try self.isOptionalFieldExists(field.name, raw_line, depth));
+                        const actual_type_info = if (is_optional_field) @typeInfo(type_info.Optional.child) else type_info;
 
-                        if (!is_optional_field or is_optional_exists) {
-                            const actual_type_info = if (is_optional_field) @typeInfo(type_info.Optional.child) else type_info;
+                        std.debug.print("is struct: {s}\n", .{@typeName(@TypeOf(actual_type_info))});
 
-                            try self.parseField(
-                                actual_type_info,
-                                &destination,
-                                field,
-                                raw_line,
-                                depth,
-                            );
-                        } else {
-                            try self.suspense.set(raw_line);
-                            @field(destination, field.name) = null;
-                        }
+                        try self.parseField(
+                            actual_type_info,
+                            &destination,
+                            field,
+                            raw_line,
+                            depth,
+                        );
 
                         found_field = true;
                     }
 
-                    if (!found_field and is_optional_field) {
+                    if (index == destination_reflaction.Struct.fields.len - 1 and !found_field and is_optional_field) {
                         found_field = true;
                         try self.suspense.set(raw_line);
+                        std.debug.print("Suspensed: {s}\n", .{raw_line});
                     }
                 }
 
@@ -276,12 +276,14 @@ pub fn Ymlz(comptime Destination: type) type {
                     } else if (actual_type_info.Pointer.size == .Slice and (actual_type_info.Pointer.child == []const u8 or actual_type_info.Pointer.child == []u8)) {
                         @field(destination, field.name) = try self.parseStringArrayExpression(actual_type_info.Pointer.child, depth + 1);
                     } else if (actual_type_info.Pointer.size == .Slice and @typeInfo(actual_type_info.Pointer.child) != .Pointer) {
+                        std.debug.print("Parsing for: {s}\n", .{@typeName(actual_type_info.Pointer.child)});
                         @field(destination, field.name) = try self.parseArrayExpression(actual_type_info.Pointer.child, depth + 1);
                     } else {
                         @panic("unexpected pointer type recieved - " ++ @typeName(field.type) ++ "\n");
                     }
                 },
                 .Struct => {
+                    std.debug.print("Struct!\n", .{});
                     @field(destination, field.name) = try self.parse(field.type, depth + 1);
                 },
                 else => {
@@ -410,6 +412,8 @@ pub fn Ymlz(comptime Destination: type) type {
             while (true) {
                 const raw_value_line = try self.readLine() orelse break;
 
+                std.debug.print("raw_value_line: {s}\n", .{raw_value_line});
+
                 // If this is only the array entry char '-', just eat this line
                 if (isArrayEntryOnlyChar(raw_value_line)) {
                     continue;
@@ -417,10 +421,7 @@ pub fn Ymlz(comptime Destination: type) type {
 
                 try self.suspense.set(raw_value_line);
 
-                std.debug.print("parseArrayExpression: {s}\n", .{raw_value_line});
-
                 if (self.isNewExpression(raw_value_line, depth)) {
-                    std.debug.print("Breaking from depth {d} | {s}\n", .{ depth, @typeName(T) });
                     break;
                 }
 
@@ -895,9 +896,11 @@ test "should be able to parse arrays and arrays in arrays" {
     try expect(std.mem.eql(u8, result.shaders[6].slang, "wgsl"));
     try expect(std.mem.eql(u8, result.shaders[6].programs[0].name, "default"));
     try expect(result.shaders[6].programs[0].vs.image_sampler_pairs == null);
-    try expect(result.shaders[6].programs[0].fs.image_sampler_pairs != null);
     try expect(result.shaders[6].programs[0].fs.image_sampler_pairs.?[0].slot == 0);
+    try expect(result.shaders[6].programs[0].fs.image_sampler_pairs != null);
     try expect(std.mem.eql(u8, result.shaders[6].programs[0].fs.image_sampler_pairs.?[0].sampler_name, "smp"));
+
+    std.debug.print("HERE!!!\n", .{});
 }
 
 // test "should be able to to skip optional fields if non-existent in the parsed file" {
