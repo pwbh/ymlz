@@ -93,7 +93,7 @@ pub fn Ymlz(comptime Destination: type) type {
 
         /// Allows passing a reader which will be used to parse your raw yml bytes.
         pub fn loadReader(self: *Self, reader: AnyReader) !Destination {
-            if (@typeInfo(Destination) != .Struct) {
+            if (@typeInfo(Destination) != .@"struct") {
                 @panic("ymlz only able to load yml files into structs");
             }
 
@@ -105,20 +105,20 @@ pub fn Ymlz(comptime Destination: type) type {
         fn deinitRecursively(self: *Self, st: anytype, depth: usize) void {
             const destination_reflaction = @typeInfo(@TypeOf(st));
 
-            if (destination_reflaction == .Struct) {
-                inline for (destination_reflaction.Struct.fields) |field| {
+            if (destination_reflaction == .@"struct") {
+                inline for (destination_reflaction.@"struct".fields) |field| {
                     const typeInfo = @typeInfo(field.type);
-                    const actualTypeInfo = if (typeInfo == .Optional) @typeInfo(typeInfo.Optional.child) else typeInfo;
+                    const actualTypeInfo = if (typeInfo == .optional) @typeInfo(typeInfo.optional.child) else typeInfo;
 
                     switch (actualTypeInfo) {
-                        .Pointer => {
-                            if (actualTypeInfo.Pointer.size == .Slice and actualTypeInfo.Pointer.child != u8) {
-                                const child_type_info = @typeInfo(actualTypeInfo.Pointer.child);
+                        .pointer => {
+                            if (actualTypeInfo.pointer.size == .slice and actualTypeInfo.pointer.child != u8) {
+                                const child_type_info = @typeInfo(actualTypeInfo.pointer.child);
 
-                                if (actualTypeInfo.Pointer.size == .Slice and child_type_info == .Struct) {
+                                if (actualTypeInfo.pointer.size == .slice and child_type_info == .@"struct") {
                                     const inner = @field(st, field.name);
 
-                                    if (typeInfo == .Optional) {
+                                    if (typeInfo == .optional) {
                                         if (inner) |n| {
                                             for (n) |inner_st| {
                                                 self.deinitRecursively(inner_st, depth + 1);
@@ -133,7 +133,7 @@ pub fn Ymlz(comptime Destination: type) type {
 
                                 const container = @field(st, field.name);
 
-                                if (typeInfo == .Optional) {
+                                if (typeInfo == .optional) {
                                     if (container) |c| {
                                         self.allocator.free(c);
                                     }
@@ -142,7 +142,7 @@ pub fn Ymlz(comptime Destination: type) type {
                                 }
                             }
                         },
-                        .Struct => {
+                        .@"struct" => {
                             const inner = @field(st, field.name);
                             self.deinitRecursively(inner, depth + 1);
                         },
@@ -187,7 +187,7 @@ pub fn Ymlz(comptime Destination: type) type {
             _ = self;
             const indent = depth * INDENT_SIZE;
             const line = raw_line[indent..];
-            var splitted = std.mem.split(u8, line, ":");
+            var splitted = std.mem.splitSequence(u8, line, ":");
             return splitted.next();
         }
 
@@ -197,13 +197,13 @@ pub fn Ymlz(comptime Destination: type) type {
             var totalFieldsParsed: usize = 0;
 
             // Make sure nullify all optional fields first
-            inline for (destination_reflaction.Struct.fields) |field| {
-                if (@typeInfo(field.type) == .Optional) {
+            inline for (destination_reflaction.@"struct".fields) |field| {
+                if (@typeInfo(field.type) == .optional) {
                     @field(destination, field.name) = null;
                 }
             }
 
-            while (totalFieldsParsed < destination_reflaction.Struct.fields.len) {
+            while (totalFieldsParsed < destination_reflaction.@"struct".fields.len) {
                 const raw_line = try self.readLine() orelse {
                     break;
                 };
@@ -214,12 +214,12 @@ pub fn Ymlz(comptime Destination: type) type {
 
                 var is_field_parsed = false;
 
-                inline for (destination_reflaction.Struct.fields, 0..) |field, index| {
+                inline for (destination_reflaction.@"struct".fields, 0..) |field, index| {
                     const type_info = @typeInfo(field.type);
-                    const is_optional_field = type_info == .Optional;
+                    const is_optional_field = type_info == .optional;
 
                     if (std.mem.eql(u8, field.name, field_name)) {
-                        const actual_type_info = if (is_optional_field) @typeInfo(type_info.Optional.child) else type_info;
+                        const actual_type_info = if (is_optional_field) @typeInfo(type_info.optional.child) else type_info;
 
                         try self.parseField(
                             actual_type_info,
@@ -232,7 +232,7 @@ pub fn Ymlz(comptime Destination: type) type {
                         is_field_parsed = true;
                     }
 
-                    if (index == destination_reflaction.Struct.fields.len - 1 and !is_field_parsed and is_optional_field) {
+                    if (index == destination_reflaction.@"struct".fields.len - 1 and !is_field_parsed and is_optional_field) {
                         is_field_parsed = true;
                         try self.suspense.set(raw_line);
                     }
@@ -257,27 +257,27 @@ pub fn Ymlz(comptime Destination: type) type {
             depth: usize,
         ) !void {
             switch (actual_type_info) {
-                .Bool => {
+                .bool => {
                     @field(destination, field.name) = try self.parseBooleanExpression(raw_line, depth);
                 },
-                .Int => {
+                .int => {
                     @field(destination, field.name) = try self.parseNumericExpression(field.type, raw_line, depth);
                 },
-                .Float => {
+                .float => {
                     @field(destination, field.name) = try self.parseNumericExpression(field.type, raw_line, depth);
                 },
-                .Pointer => {
-                    if (actual_type_info.Pointer.size == .Slice and actual_type_info.Pointer.child == u8) {
+                .pointer => {
+                    if (actual_type_info.pointer.size == .slice and actual_type_info.pointer.child == u8) {
                         @field(destination, field.name) = try self.parseStringExpression(raw_line, depth, false);
-                    } else if (actual_type_info.Pointer.size == .Slice and (actual_type_info.Pointer.child == []const u8 or actual_type_info.Pointer.child == []u8)) {
-                        @field(destination, field.name) = try self.parseStringArrayExpression(actual_type_info.Pointer.child, depth + 1);
-                    } else if (actual_type_info.Pointer.size == .Slice and @typeInfo(actual_type_info.Pointer.child) != .Pointer) {
-                        @field(destination, field.name) = try self.parseArrayExpression(actual_type_info.Pointer.child, depth + 1);
+                    } else if (actual_type_info.pointer.size == .slice and (actual_type_info.pointer.child == []const u8 or actual_type_info.pointer.child == []u8)) {
+                        @field(destination, field.name) = try self.parseStringArrayExpression(actual_type_info.pointer.child, depth + 1);
+                    } else if (actual_type_info.pointer.size == .slice and @typeInfo(actual_type_info.pointer.child) != .pointer) {
+                        @field(destination, field.name) = try self.parseArrayExpression(actual_type_info.pointer.child, depth + 1);
                     } else {
                         @panic("unexpected pointer type recieved - " ++ @typeName(field.type) ++ "\n");
                     }
                 },
-                .Struct => {
+                .@"struct" => {
                     @field(destination, field.name) = try self.parse(field.type, depth + 1);
                 },
                 else => {
@@ -288,7 +288,7 @@ pub fn Ymlz(comptime Destination: type) type {
 
         fn isOptionalFieldExists(self: *Self, lookup_key: []const u8, raw_line: []const u8, depth: usize) !bool {
             const indent_depth = self.getIndentDepth(depth);
-            var split_iterator = std.mem.split(u8, raw_line[indent_depth..], ":");
+            var split_iterator = std.mem.splitSequence(u8, raw_line[indent_depth..], ":");
             const key = split_iterator.next() orelse return false;
             return std.mem.eql(u8, key, lookup_key);
         }
@@ -510,10 +510,10 @@ pub fn Ymlz(comptime Destination: type) type {
             const value = self.getExpressionValueWithTrim(expression);
 
             switch (@typeInfo(T)) {
-                .Int => {
+                .int => {
                     return std.fmt.parseInt(T, value, 10);
                 },
-                .Float => {
+                .float => {
                     return std.fmt.parseFloat(T, value);
                 },
                 else => {
@@ -559,7 +559,7 @@ pub fn Ymlz(comptime Destination: type) type {
                 };
             }
 
-            var tokens_iterator = std.mem.split(u8, line, ": ");
+            var tokens_iterator = std.mem.splitSequence(u8, line, ": ");
 
             const key = tokens_iterator.next() orelse return error.KeyNotFound;
 

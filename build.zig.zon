@@ -1,5 +1,5 @@
 .{
-    .name = "ymlz",
+    .name = .ymlz,
     .version = "0.4.0",
     .dependencies = .{},
     .paths = .{
@@ -7,4 +7,5 @@
         "build.zig.zon",
         "src",
     },
+    .fingerprint = 0xee4d4f069366f4c,
 }
