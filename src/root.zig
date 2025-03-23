@@ -1,4 +1,5 @@
 const std = @import("std");
+const constants = @import("./consants.zig");
 
 const Suspense = @import("./Suspense.zig");
 
@@ -7,28 +8,17 @@ const AnyReader = std.io.AnyReader;
 
 const expect = std.testing.expect;
 
-/// Count of spaces for one depth level
-const INDENT_SIZE = 2;
-const MAX_READ_SIZE = std.math.maxInt(usize);
-
-const Dictionary = struct {
-    key: []const u8,
-    values: [][]const u8,
-};
-
-const Value = union(enum) {
-    Simple: []const u8,
-    KV: struct { key: []const u8, value: []const u8 },
-    Array: [][]const u8,
-    Dictionary: Dictionary,
-};
-
-const Expression = struct {
-    value: Value,
-    raw: []const u8,
-};
-
 pub fn Ymlz(comptime Destination: type) type {
+    const Value = union(enum) {
+        Simple: []const u8,
+        KV: struct { key: []const u8, value: []const u8 },
+    };
+
+    const Expression = struct {
+        value: Value,
+        raw: []const u8,
+    };
+
     return struct {
         allocator: Allocator,
         reader: ?AnyReader,
@@ -170,7 +160,7 @@ pub fn Ymlz(comptime Destination: type) type {
 
         fn getIndentDepth(self: *Self, depth: usize) usize {
             _ = self;
-            return INDENT_SIZE * depth;
+            return constants.INDENT_SIZE * depth;
         }
 
         fn printFieldWithIdent(self: *Self, depth: usize, field_name: []const u8, raw_line: []const u8) void {
@@ -184,8 +174,7 @@ pub fn Ymlz(comptime Destination: type) type {
         }
 
         fn getFieldName(self: *Self, raw_line: []const u8, depth: usize) ?[]const u8 {
-            _ = self;
-            const indent = depth * INDENT_SIZE;
+            const indent = self.getIndentDepth(depth);
             const line = raw_line[indent..];
             var splitted = std.mem.splitSequence(u8, line, ":");
             return splitted.next();
@@ -329,7 +318,7 @@ pub fn Ymlz(comptime Destination: type) type {
             const raw_line = try reader.readUntilDelimiterOrEofAlloc(
                 self.allocator,
                 '\n',
-                MAX_READ_SIZE,
+                constants.MAX_READ_SIZE,
             );
 
             if (raw_line) |line| {
@@ -482,7 +471,6 @@ pub fn Ymlz(comptime Destination: type) type {
             switch (expression.value) {
                 .Simple => return expression.value.Simple,
                 .KV => return expression.value.KV.value,
-                else => @panic("Not implemeted for " ++ @typeName(@TypeOf(expression.value))),
             }
         }
 
