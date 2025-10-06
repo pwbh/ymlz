@@ -17,9 +17,9 @@ jobs:
 
       - name: Install latest Zig
         run: |
-          wget https://ziglang.org/download/0.15.1/zig-linux-x86_64-0.15.1.tar.xz
-          tar xf zig-linux-x86_64-0.15.1.tar.xz
-          echo "$GITHUB_WORKSPACE/zig-linux-x86_64-0.15.1" >> $GITHUB_PATH
+          wget https://ziglang.org/download/0.15.1/zig-x86_64-linux-0.15.1.tar.xz
+          tar xf zig-x86_64-linux-0.15.1.tar.xz
+          echo "$GITHUB_WORKSPACE/zig-x86_64-linux-0.15.1" >> $GITHUB_PATH
 
       - name: Check Zig version
         run: |
