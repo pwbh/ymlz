@@ -33,13 +33,13 @@ pub fn Ymlz(comptime Destination: type) type {
             return .{
                 .allocator = allocator,
                 .reader = null,
-                .allocations = std.ArrayList([]const u8).init(allocator),
+                .allocations = try std.ArrayList([]const u8).initCapacity(allocator, 0),
                 .suspense = Suspense.init(allocator),
             };
         }
 
         pub fn deinit(self: *Self, st: anytype) void {
-            defer self.allocations.deinit();
+            defer self.allocations.deinit(self.allocator);
 
             for (self.allocations.items) |allocation| {
                 self.allocator.free(allocation);
@@ -56,24 +56,23 @@ pub fn Ymlz(comptime Destination: type) type {
         pub fn loadFile(self: *Self, yml_path: []const u8) !Destination {
             const file = try std.fs.openFileAbsolute(yml_path, .{ .mode = .read_only });
             defer file.close();
-            const file_reader = file.reader();
-            const any_reader: std.io.AnyReader = .{ .context = &file_reader.context, .readFn = fileRead };
+            const any_reader: AnyReader = .{ .context = &file, .readFn = fileRead };
             return self.loadReader(any_reader);
         }
 
         fn fileRead(context: *const anyopaque, buf: []u8) anyerror!usize {
-            const file: *std.fs.File = @constCast(@alignCast(@ptrCast(context)));
+            const file: *std.fs.File = @ptrCast(@alignCast(@constCast(context)));
             return std.fs.File.read(file.*, buf);
         }
 
         pub fn loadRaw(self: *Self, raw: []const u8) !Destination {
             const context: InternalRawContenxt = .{ .buf = raw };
-            const any_reader: std.io.AnyReader = .{ .context = &context, .readFn = rawRead };
+            const any_reader: AnyReader = .{ .context = &context, .readFn = rawRead };
             return self.loadReader(any_reader);
         }
 
         fn rawRead(context: *const anyopaque, buf: []u8) anyerror!usize {
-            var internal_raw_context: *InternalRawContenxt = @constCast(@alignCast(@ptrCast(context)));
+            var internal_raw_context: *InternalRawContenxt = @ptrCast(@alignCast(@constCast(context)));
             const source = internal_raw_context.buf[internal_raw_context.current_index..];
             const len = @min(buf.len, source.len);
             @memcpy(buf[0..len], source[0..len]);
@@ -322,7 +321,7 @@ pub fn Ymlz(comptime Destination: type) type {
             );
 
             if (raw_line) |line| {
-                try self.allocations.append(line);
+                try self.allocations.append(self.allocator, line);
                 return line;
             }
 
@@ -369,8 +368,8 @@ pub fn Ymlz(comptime Destination: type) type {
         }
 
         fn parseStringArrayExpression(self: *Self, comptime T: type, depth: usize) ![]T {
-            var list = std.ArrayList(T).init(self.allocator);
-            defer list.deinit();
+            var list = try std.ArrayList(T).initCapacity(self.allocator, 0);
+            defer list.deinit(self.allocator);
 
             while (true) {
                 const raw_value_line = try self.readLine() orelse break;
@@ -382,15 +381,15 @@ pub fn Ymlz(comptime Destination: type) type {
 
                 const result = try self.parseStringExpression(raw_value_line, depth, false);
 
-                try list.append(result);
+                try list.append(self.allocator, result);
             }
 
-            return try list.toOwnedSlice();
+            return try list.toOwnedSlice(self.allocator);
         }
 
         fn parseArrayExpression(self: *Self, comptime T: type, depth: usize) ![]T {
-            var list = std.ArrayList(T).init(self.allocator);
-            defer list.deinit();
+            var list = try std.ArrayList(T).initCapacity(self.allocator, 0);
+            defer list.deinit(self.allocator);
 
             while (true) {
                 const raw_value_line = try self.readLine() orelse break;
@@ -408,10 +407,10 @@ pub fn Ymlz(comptime Destination: type) type {
 
                 const result = try self.parse(T, depth + 1);
 
-                try list.append(result);
+                try list.append(self.allocator, result);
             }
 
-            return try list.toOwnedSlice();
+            return try list.toOwnedSlice(self.allocator);
         }
 
         fn parseStringExpression(self: *Self, raw_line: []const u8, depth: usize, is_multiline: bool) ![]const u8 {
@@ -432,8 +431,8 @@ pub fn Ymlz(comptime Destination: type) type {
         }
 
         fn parseMultilineString(self: *Self, depth: usize, preserve_new_line: bool) ![]const u8 {
-            var list = std.ArrayList(u8).init(self.allocator);
-            defer list.deinit();
+            var list = try std.ArrayList(u8).initCapacity(self.allocator, 0);
+            defer list.deinit(self.allocator);
 
             while (true) {
                 const raw_value_line = try self.readRawLine() orelse break;
@@ -448,15 +447,15 @@ pub fn Ymlz(comptime Destination: type) type {
                 const expression = try self.parseSimpleExpression(raw_value_line, depth, true);
                 const value = self.getExpressionValue(expression);
 
-                try list.appendSlice(value);
+                try list.appendSlice(self.allocator, value);
 
                 if (preserve_new_line)
-                    try list.append('\n');
+                    try list.append(self.allocator, '\n');
             }
 
-            const str = try list.toOwnedSlice();
+            const str = try list.toOwnedSlice(self.allocator);
 
-            try self.allocations.append(str);
+            try self.allocations.append(self.allocator, str);
 
             return str;
         }

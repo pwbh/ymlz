@@ -3,7 +3,12 @@ const Self = @This();
 const std = @import("std");
 const expect = std.testing.expect;
 
-const Stack = std.DoublyLinkedList([]const u8);
+const Stack = std.DoublyLinkedList;
+
+const StackItem = struct {
+    data: []const u8,
+    node: std.DoublyLinkedList.Node,
+};
 
 allocator: std.mem.Allocator,
 stack: Stack,
@@ -17,21 +22,23 @@ pub fn init(allocator: std.mem.Allocator) Self {
 
 pub fn deinit(self: *Self) void {
     while (self.stack.pop()) |node| {
-        self.allocator.destroy(node);
+        const stack_item: *StackItem = @fieldParentPtr("node", node);
+        self.allocator.destroy(stack_item);
     }
 }
 
 pub fn set(self: *Self, data: []const u8) !void {
-    const node = try self.allocator.create(Stack.Node);
-    node.* = .{ .data = data };
-    self.stack.append(node);
+    const stack_item = try self.allocator.create(StackItem);
+    stack_item.* = .{ .data = data, .node = .{} };
+    self.stack.append(&stack_item.node);
 }
 
 pub fn get(self: *Self) ?[]const u8 {
     if (self.stack.popFirst()) |node| {
-        const ptr = node.data;
-        self.allocator.destroy(node);
-        return ptr;
+        const stack_item: *StackItem = @fieldParentPtr("node", node);
+        const data = stack_item.data;
+        self.allocator.destroy(stack_item);
+        return data;
     }
 
     return null;
