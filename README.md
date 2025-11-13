@@ -49,17 +49,18 @@ We can utilize `loadFile` which expects the absolute path to your YAML file, I w
 ```yml
 first: 500
 second: -3
-name: just testing strings overhere
+name: just testing strings overhere # just a comment
 fourth: 142.241
+# comment in between lines
 foods:
   - Apple
   - Orange
   - Strawberry
   - Mango
 inner:
-  sd: 12
+  abcd: 12
   k: 2
-  l: hello world
+  l: hello world # comment somewhere
   another:
     new: 1
     stringed: its just a string
@@ -76,22 +77,22 @@ const Ymlz = @import("ymlz").Ymlz;
 
 // Notice how simple it is to define a struct that is one-to-one
 // to the yaml file structure
-const Tester = struct {
-    first: i32,
-    second: i64,
-    name: []const u8,
-    fourth: f32,
-    foods: [][]const u8,
-    inner: struct {
-        sd: i32,
-        k: u8,
-        l: []const u8,
-        another: struct {
-            new: f32,
-            stringed: []const u8,
+const Experiment = struct {
+        first: i32,
+        second: i64,
+        name: []const u8,
+        fourth: f32,
+        foods: [][]const u8,
+        inner: struct {
+            abcd: i32,
+            k: u8,
+            l: []const u8,
+            another: struct {
+                new: f32,
+                stringed: []const u8,
+            },
         },
-    },
-};
+    };
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -114,12 +115,12 @@ pub fn main() !void {
     );
     defer allocator.free(yml_path);
 
-    var ymlz = try Ymlz(Tester).init(allocator);
+    var ymlz = try Ymlz(Experiment).init(allocator);
     const result = try ymlz.loadFile(yml_path);
     defer ymlz.deinit(result);
 
     // We can print and see that all the fields have been loaded
-    std.debug.print("Tester: {any}\n", .{result});
+    std.debug.print("Experiment: {any}\n", .{result});
     // Lets try accessing the first field and printing it
     std.debug.print("First: {}\n", .{result.first});
     // same goes for the array that we've defined `foods`

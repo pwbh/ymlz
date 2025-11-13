@@ -2,6 +2,23 @@ const std = @import("std");
 
 const Ymlz = @import("root.zig").Ymlz;
 
+const Experiment = struct {
+    first: i32,
+    second: i64,
+    name: []const u8,
+    fourth: f32,
+    foods: [][]const u8,
+    inner: struct {
+        abcd: i32,
+        k: u8,
+        l: []const u8,
+        another: struct {
+            new: f32,
+            stringed: []const u8,
+        },
+    },
+};
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
@@ -26,23 +43,6 @@ pub fn main() !void {
         \\    new: 1
         \\    stringed: its just a string
     ;
-
-    const Experiment = struct {
-        first: i32,
-        second: i64,
-        name: []const u8,
-        fourth: f32,
-        foods: [][]const u8,
-        inner: struct {
-            abcd: i32,
-            k: u8,
-            l: []const u8,
-            another: struct {
-                new: f32,
-                stringed: []const u8,
-            },
-        },
-    };
 
     var ymlz = try Ymlz(Experiment).init(allocator);
     const result = try ymlz.loadRaw(yaml_content);
