@@ -28,7 +28,7 @@ Easiest way to use ymlz is to fetch it via `zig fetch`, **make sure to provide i
 See an example below.
 
 ```bash
-zig fetch --save https://github.com/pwbh/ymlz/archive/refs/tags/0.5.0.tar.gz
+zig fetch --save https://github.com/pwbh/ymlz/archive/refs/tags/0.6.0.tar.gz
 ```
 
 Now in your `build.zig` we need to import ymlz as a module the following way:
