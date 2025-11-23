@@ -172,11 +172,23 @@ pub fn Ymlz(comptime Destination: type) type {
             std.debug.print("{s}\t{s}\n", .{ field_name, raw_line });
         }
 
+        fn trimLeadingSpaces(s: ?[]const u8) ?[]const u8 {
+            const str = s orelse return null;
+            var i: usize = 0;
+            while (i < str.len and str[i] == ' ') : (i += 1) {}
+            return str[i..];
+        }
+
         fn getFieldName(self: *Self, raw_line: []const u8, depth: usize) ?[]const u8 {
             const indent = self.getIndentDepth(depth);
             const line = raw_line[indent..];
             var splitted = std.mem.splitSequence(u8, line, ":");
-            return splitted.next();
+            // when running on linux, what gets returned here for a non-zero indent is a value prefixed with a space
+            // getFieldName() - indent: 2 line: ' abcd: 12'
+            // for example, when running the example, the inner struct field abcd is set to ' abcd' which causes issues
+            // as it will crash because @panic("No such field in given yml file."). this occurs because when it does the comparison
+            // on line 221 below, the compare looks like this: 'abcd' == ' abcd'
+            return trimLeadingSpaces(splitted.next());
         }
 
         fn parse(self: *Self, comptime T: type, depth: usize) !T {
