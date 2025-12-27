@@ -1,0 +1,14 @@
+products:
+  - name: "pear"
+    num_products: 2
+    price: 3.3
+    fresh: true
+  - name: "bread"
+    num_products: 1
+    price: 1.3
+    fresh: false
+    extra_information: "the bread was baked yesterday"
+  - name: "yogurt"
+    num_products: 3
+    price: 2.3
+    fresh: true

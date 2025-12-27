@@ -208,6 +208,11 @@ pub fn Ymlz(comptime Destination: type) type {
                     break;
                 };
 
+                if (totalFieldsParsed != 0 and newArrrayIndexPresent(raw_line)) {
+                    try self.suspense.set(raw_line);
+                    break;
+                }
+
                 const field_name = self.getFieldName(raw_line, depth) orelse {
                     @panic(("Failed to get field name from yml file."));
                 };
@@ -354,6 +359,23 @@ pub fn Ymlz(comptime Destination: type) type {
             }
 
             return null;
+        }
+
+        fn newArrrayIndexPresent(raw_line: []const u8) bool {
+            // Trim whitespace
+            const trimmed_line = std.mem.trim(u8, raw_line, " ");
+            var iter = std.mem.tokenizeScalar(u8, trimmed_line, ' ');
+            const first_token = if (iter.next()) |token| token else "";
+            if (!std.mem.eql(u8, first_token, "-")) return false;
+
+            // Check for next token this if the first token is '-' should now be a field,
+            // if that's true it means that we start a new index in array.
+            if (iter.next()) |token| {
+                const double_quotes = std.mem.count(u8, token, "\"");
+                const is_new_field = std.mem.count(u8, token, ":");
+                if (double_quotes == 0 and is_new_field == 1) return true;
+            }
+            return false;
         }
 
         fn isArrayEntryOnlyChar(raw_line: []const u8) bool {
@@ -935,4 +957,40 @@ test "should be able to to skip optional fields if non-existent in the parsed fi
 
     try expect(result.inner.abcd == 12);
     try expect(std.mem.eql(u8, result.inner.another.stringed, "its just a string"));
+}
+
+test "should handle optional for new array index" {
+    const Subject = struct {
+        products: []struct {
+            name: []const u8,
+            num_products: u16,
+            price: f32,
+            fresh: bool,
+            extra_information: ?[]const u8,
+        },
+    };
+    const yml_file_location = try std.fs.cwd().realpathAlloc(
+        std.testing.allocator,
+        "./resources/optional_array.yml"
+    );
+    defer std.testing.allocator.free(yml_file_location);
+
+    var ymlz = try Ymlz(Subject).init(std.testing.allocator);
+    const result = try ymlz.loadFile(yml_file_location);
+    defer ymlz.deinit(result);
+
+    try expect(result.products.len == 3);
+
+    const products = result.products;
+    try expect(std.mem.eql(u8, products[0].name, "pear"));
+    try expect(std.mem.eql(u8, products[1].name, "bread"));
+    try expect(std.mem.eql(u8, products[2].name, "yogurt"));
+
+    try expect(products[0].extra_information == null);
+    try expect(products[1].extra_information != null);
+    try expect(products[2].extra_information == null);
+
+    try expect(products[0].fresh == true);
+    try expect(products[1].fresh == false);
+    try expect(products[2].fresh == true);
 }
