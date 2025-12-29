@@ -208,13 +208,13 @@ pub fn Ymlz(comptime Destination: type) type {
                     break;
                 };
 
+                if (raw_line.len == 0) {
+                    continue;
+                }
+
                 if (totalFieldsParsed != 0 and newArrrayIndexPresent(raw_line)) {
                     try self.suspense.set(raw_line);
                     break;
-                }
-
-                if (raw_line.len == 0) {
-                    continue;
                 }
 
                 const field_name = self.getFieldName(raw_line, depth) orelse {
