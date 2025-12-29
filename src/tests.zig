@@ -212,3 +212,50 @@ test "QT73" {
     try expect(std.mem.eql(u8, element.name, "Comment and document-end marker"));
     try expect(std.mem.eql(u8, element.from, "@perlpunk"));
 }
+
+test "trailing empty lines" {
+
+    const NodeYaml = struct {
+        guid: []const u8 = "",
+        text: []const u8 = "",
+    };
+
+    const SpecYaml = struct {
+        nodes: []const NodeYaml = &.{},
+    };
+
+    const yml_file_location = try std.fs.cwd().realpathAlloc(
+        std.testing.allocator,
+        "./resources/trailing_empty_lines.yml",
+    );
+    defer std.testing.allocator.free(yml_file_location);
+
+    var ymlz = try Ymlz(SpecYaml).init(std.testing.allocator);
+    const result = try ymlz.loadFile(yml_file_location);
+    defer ymlz.deinit(result);
+
+    const element = result.nodes;
+
+    try expect(std.mem.eql(u8, element[0].guid, "abc"));
+    try expect(std.mem.eql(u8, element[0].text, "test"));
+}
+
+test "internal empty lines" {
+    const Experiment = struct {
+        value: u8,
+        broken: u8
+    };
+
+    const yml_file_location = try std.fs.cwd().realpathAlloc(
+        std.testing.allocator,
+        "./resources/internal_empty_lines.yml",
+    );
+    defer std.testing.allocator.free(yml_file_location);
+
+    var ymlz = try Ymlz(Experiment).init(std.testing.allocator);
+    const result = try ymlz.loadFile(yml_file_location);
+    defer ymlz.deinit(result);
+
+    try expect(result.value == 1);
+    try expect(result.broken == 2);
+}
