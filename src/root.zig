@@ -180,6 +180,9 @@ pub fn Ymlz(comptime Destination: type) type {
         }
 
         fn getFieldName(self: *Self, raw_line: []const u8, depth: usize) ?[]const u8 {
+            if (raw_line.len == 0) {
+                return null;
+            }
             const indent = self.getIndentDepth(depth);
             const line = raw_line[indent..];
             var splitted = std.mem.splitSequence(u8, line, ":");
@@ -214,7 +217,7 @@ pub fn Ymlz(comptime Destination: type) type {
                 }
 
                 const field_name = self.getFieldName(raw_line, depth) orelse {
-                    @panic(("Failed to get field name from yml file."));
+                    continue;
                 };
 
                 var is_field_parsed = false;
