@@ -4,6 +4,21 @@ const expect = std.testing.expect;
 
 const Ymlz = @import("root.zig").Ymlz;
 
+const compat = @import("compat/compat.zig");
+const isZig0_16 = compat.isZig0_16;
+const Dir = if (isZig0_16)
+    std.Io.Dir
+else
+    compat.Io.Dir;
+const Io = if (isZig0_16)
+    std.Io
+else
+    compat.Io;
+const io: Io = if (isZig0_16)
+    std.testing.io
+else
+    .{};
+
 test "Multiple elements in yaml file" {
     const Element = struct {
         name: []const u8,
@@ -14,9 +29,10 @@ test "Multiple elements in yaml file" {
 
     const Elements = struct { elements: []Element };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
+    const yml_file_location = try Dir.cwd().realPathFileAlloc(
+        io,
         "./resources/multiple_elements.yml",
+        std.testing.allocator,
     );
     defer std.testing.allocator.free(yml_file_location);
 
@@ -65,9 +81,10 @@ test "98YD with bools" {
         elements: []Element,
     };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
+    const yml_file_location = try Dir.cwd().realPathFileAlloc(
+        io,
         "./resources/yaml-test-suite/98YD-mixed.yml",
+        std.testing.allocator,
     );
     defer std.testing.allocator.free(yml_file_location);
 
@@ -101,9 +118,10 @@ test "98YD" {
         elements: []Element,
     };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
+    const yml_file_location = try Dir.cwd().realPathFileAlloc(
+        io,
         "./resources/yaml-test-suite/98YD.yml",
+        std.testing.allocator,
     );
     defer std.testing.allocator.free(yml_file_location);
 
@@ -134,9 +152,10 @@ test "CC74" {
         elements: []Element,
     };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
+    const yml_file_location = try Dir.cwd().realPathFileAlloc(
+        io,
         "./resources/yaml-test-suite/CC74.yml",
+        std.testing.allocator,
     );
     defer std.testing.allocator.free(yml_file_location);
 
@@ -166,9 +185,10 @@ test "F6MC" {
         elements: []Element,
     };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
+    const yml_file_location = try Dir.cwd().realPathFileAlloc(
+        io,
         "./resources/yaml-test-suite/F6MC.yml",
+        std.testing.allocator,
     );
     defer std.testing.allocator.free(yml_file_location);
 
@@ -197,9 +217,10 @@ test "QT73" {
         elements: []Element,
     };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
+    const yml_file_location = try Dir.cwd().realPathFileAlloc(
+        io,
         "./resources/yaml-test-suite/QT73.yml",
+        std.testing.allocator,
     );
     defer std.testing.allocator.free(yml_file_location);
 
@@ -214,7 +235,6 @@ test "QT73" {
 }
 
 test "trailing empty lines" {
-
     const NodeYaml = struct {
         guid: []const u8 = "",
         text: []const u8 = "",
@@ -224,9 +244,10 @@ test "trailing empty lines" {
         nodes: []const NodeYaml = &.{},
     };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
+    const yml_file_location = try Dir.cwd().realPathFileAlloc(
+        io,
         "./resources/trailing_empty_lines.yml",
+        std.testing.allocator,
     );
     defer std.testing.allocator.free(yml_file_location);
 
@@ -241,14 +262,12 @@ test "trailing empty lines" {
 }
 
 test "internal empty lines" {
-    const Experiment = struct {
-        value: u8,
-        broken: u8
-    };
+    const Experiment = struct { value: u8, broken: u8 };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
+    const yml_file_location = try Dir.cwd().realPathFileAlloc(
+        io,
         "./resources/internal_empty_lines.yml",
+        std.testing.allocator,
     );
     defer std.testing.allocator.free(yml_file_location);
 

@@ -20,9 +20,9 @@ const Experiment = struct {
 };
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}){};
+    defer std.debug.assert(gpa.deinit() == .ok);
     const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
 
     const yaml_content =
         \\first: 500

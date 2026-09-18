@@ -190,9 +190,51 @@ pub fn main() !void {
 
 ```
 
-### Parsing by providing a custom std.io.AnyReader
+### Parsing by providing a custom reader
 
-It's possible to pass your own implementation of the std.io.AnyReader interface to ymlz using `loadReader` which is used internally for both `loadFile` and `loadRaw`. See [internal implementation](https://github.com/pwbh/ymlz/blob/master/src/root.zig#L64) for reference.
+It's possible to pass your own implementation for the `readLine` function to ymlz using `loadReader` which is used internally for both `loadFile` and `loadRaw`. See [internal implementation](https://github.com/pwbh/ymlz/blob/master/src/root.zig#L64) for reference. An instance of a struct implementing
+the following function can be passed as reader:
+
+```Zig
+pub fn readLine(
+    self: *Self,
+    allocator: Allocator,
+) !?[]const u8 {
+    // ...
+}
+```
+
+## Migrate to newer Zig Compiler Version
+
+For convenience to upgrade to newer Zig compiler versions,
+YMLZ can be used with two different compiler versions.
+
+YMLZ Version | Zig 0.15.x | Zig 0.16.x | Zig 0.17.x
+-------------|------------|------------|----------
+0.6.0        |      X     |            |
+0.6.1        |      X     |      X     |
+0.7.0        |            |      X     |
+0.7.1        |            |      X     |       X
+
+Example:
+1. Assume: Compiling with YMLZ 0.6.0 and Zig 0.15.x works successfully.
+2. Update dependency to YMLZ 0.6.1. Then compiling with Zig 0.15.x will
+   work successfully, too.
+3. Update compiler to Zig 0.16.x. Most likely you have to migrate other
+   things in your application, but all functions from YMLZ have the same
+   signature and can be used in the same way as before.
+4. Update dependency to YMLZ 0.7.0. The signature of the loadFile function
+   has changed regarding to new `Io` struct introduced by Zig 0.16.x. You
+   must pass an instance of the `Io` struct as the first argument. Normally
+   the instance comes from the `init` parameter of type `std.process.Init` with
+   a field named `io` from your `main` function, i.e.
+
+```Zig
+pub fn main(init: std.process.Init) !void {
+    // ...
+    ymlz.loadFile(init.io, path);
+}
+```
 
 ## Contribution
 

@@ -1,12 +1,124 @@
 const std = @import("std");
-const constants = @import("./consants.zig");
+const constants = @import("constants.zig");
 
-const Suspense = @import("./Suspense.zig");
+const Suspense = @import("Suspense.zig");
 
 const Allocator = std.mem.Allocator;
-const AnyReader = std.io.AnyReader;
+
+const compat = @import("compat/compat.zig");
+const isZig0_16 = compat.isZig0_16;
+const Dir = if (isZig0_16)
+    std.Io.Dir
+else
+    compat.Io.Dir;
+const File = if (isZig0_16)
+    std.Io.File
+else
+    std.fs.File;
+const Io = if (isZig0_16)
+    std.Io
+else
+    compat.Io;
+const Writer = if (isZig0_16)
+    std.Io.Writer
+else
+    std.io.Writer;
+const trimStart = if (isZig0_16)
+    std.mem.trimStart
+else
+    std.mem.trimLeft;
+const trimEnd = if (isZig0_16)
+    std.mem.trimEnd
+else
+    std.mem.trimRight;
 
 const expect = std.testing.expect;
+
+const RawReader = struct {
+    const Self = @This();
+
+    raw: []const u8,
+    index: usize = 0,
+
+    pub fn readLine(
+        self: *Self,
+        allocator: Allocator,
+    ) !?[]const u8 {
+        if (self.index >= self.raw.len) {
+            return null;
+        }
+        const remaining = self.raw[self.index..];
+        const end = std.mem.indexOfScalar(u8, remaining, '\n') orelse remaining.len;
+        if (end > constants.MAX_READ_SIZE) {
+            return error.StreamTooLong;
+        }
+        const line = try allocator.dupe(u8, remaining[0..end]);
+        self.index += if (end < remaining.len) end + 1 else end;
+        return line;
+    }
+};
+
+const FileReader = struct {
+    const Self = @This();
+
+    allocator: Allocator,
+    io: Io,
+    file: File,
+    buffer: []u8,
+    reader: File.Reader,
+
+    pub fn init(allocator: Allocator, io: Io, yml_path: []const u8) !Self {
+        const file = try Dir.openFileAbsolute(io, yml_path, .{ .mode = .read_only });
+        if (isZig0_16) {
+            errdefer file.close(io);
+        } else {
+            errdefer file.close();
+        }
+        const buffer = try allocator.alloc(u8, 4096);
+        errdefer allocator.free(buffer);
+        return .{
+            .allocator = allocator,
+            .io = io,
+            .file = file,
+            .buffer = buffer,
+            .reader = if (isZig0_16)
+                file.reader(io, buffer)
+            else
+                file.reader(buffer),
+        };
+    }
+
+    pub fn deinit(self: *Self) void {
+        self.allocator.free(self.buffer);
+        if (isZig0_16) {
+            self.file.close(self.io);
+        } else {
+            self.file.close();
+        }
+    }
+
+    pub fn readLine(
+        self: *Self,
+        allocator: std.mem.Allocator,
+    ) !?[]const u8 {
+        var line = Writer.Allocating.init(allocator);
+        defer line.deinit();
+        _ = self.reader.interface.streamDelimiter(
+            &line.writer,
+            '\n',
+        ) catch |err| switch (err) {
+            error.EndOfStream => {
+                if (line.written().len == 0)
+                    return null;
+                return try allocator.dupe(u8, line.written());
+            },
+            else => return err,
+        };
+        // consume '\n'
+        _ = try self.reader.interface.takeByte();
+        return try allocator.dupe(u8, line.written());
+    }
+};
 
 pub fn Ymlz(comptime Destination: type) type {
     const Value = union(enum) {
@@ -21,18 +133,14 @@ pub fn Ymlz(comptime Destination: type) type {
 
     return struct {
         allocator: Allocator,
-        reader: ?AnyReader,
         allocations: std.ArrayList([]const u8),
         suspense: Suspense,
 
         const Self = @This();
 
-        const InternalRawContenxt = struct { current_index: usize = 0, buf: []const u8 };
-
         pub fn init(allocator: Allocator) !Self {
             return .{
                 .allocator = allocator,
-                .reader = null,
                 .allocations = try std.ArrayList([]const u8).initCapacity(allocator, 0),
                 .suspense = Suspense.init(allocator),
             };
@@ -51,44 +159,35 @@ pub fn Ymlz(comptime Destination: type) type {
         }
 
         /// Uses absolute path for the yml file path. Can be used in conjunction
-        /// such as `std.fs.cwd()` in order to create relative paths.
+        /// such as `std.io.Dir.cwd()` in order to create relative paths.
         /// See Github README for example.
         pub fn loadFile(self: *Self, yml_path: []const u8) !Destination {
-            const file = try std.fs.openFileAbsolute(yml_path, .{ .mode = .read_only });
-            defer file.close();
-            const any_reader: AnyReader = .{ .context = &file, .readFn = fileRead };
-            return self.loadReader(any_reader);
-        }
-
-        fn fileRead(context: *const anyopaque, buf: []u8) anyerror!usize {
-            const file: *std.fs.File = @ptrCast(@alignCast(@constCast(context)));
-            return std.fs.File.read(file.*, buf);
+            if (isZig0_16) {
+                var threaded: std.Io.Threaded = .init_single_threaded;
+                const io = threaded.io();
+                var reader: FileReader = try .init(self.allocator, io, yml_path);
+                defer reader.deinit();
+                return self.loadReader(&reader);
+            } else {
+                const io: Io = .{};
+                var reader: FileReader = try .init(self.allocator, io, yml_path);
+                defer reader.deinit();
+                return self.loadReader(&reader);
+            }
         }
 
         pub fn loadRaw(self: *Self, raw: []const u8) !Destination {
-            const context: InternalRawContenxt = .{ .buf = raw };
-            const any_reader: AnyReader = .{ .context = &context, .readFn = rawRead };
-            return self.loadReader(any_reader);
-        }
-
-        fn rawRead(context: *const anyopaque, buf: []u8) anyerror!usize {
-            var internal_raw_context: *InternalRawContenxt = @ptrCast(@alignCast(@constCast(context)));
-            const source = internal_raw_context.buf[internal_raw_context.current_index..];
-            const len = @min(buf.len, source.len);
-            @memcpy(buf[0..len], source[0..len]);
-            internal_raw_context.current_index += len;
-            return len;
+            var reader: RawReader = .{ .raw = raw };
+            return self.loadReader(&reader);
         }
 
         /// Allows passing a reader which will be used to parse your raw yml bytes.
-        pub fn loadReader(self: *Self, reader: AnyReader) !Destination {
+        pub fn loadReader(self: *Self, reader: anytype) !Destination {
             if (@typeInfo(Destination) != .@"struct") {
                 @panic("ymlz only able to load yml files into structs");
             }
 
-            self.reader = reader;
-
-            return parse(self, Destination, 0);
+            return self.parse(reader, Destination, 0);
         }
 
         fn deinitRecursively(self: *Self, st: anytype, depth: usize) void {
@@ -141,9 +240,7 @@ pub fn Ymlz(comptime Destination: type) type {
             }
         }
 
-        fn isComment(self: *Self, line: []const u8) bool {
-            _ = self;
-
+        fn isComment(line: []const u8) bool {
             for (line) |char| {
                 if (char == '#') {
                     return true;
@@ -157,13 +254,11 @@ pub fn Ymlz(comptime Destination: type) type {
             return false;
         }
 
-        fn getIndentDepth(self: *Self, depth: usize) usize {
-            _ = self;
+        fn getIndentDepth(depth: usize) usize {
             return constants.INDENT_SIZE * depth;
         }
 
-        fn printFieldWithIdent(self: *Self, depth: usize, field_name: []const u8, raw_line: []const u8) void {
-            _ = self;
+        fn printFieldWithIdent(depth: usize, field_name: []const u8, raw_line: []const u8) void {
             // std.debug.print("printFieldWithIdent:", .{});
             for (0..depth) |_| {
                 std.debug.print(" ", .{});
@@ -179,8 +274,8 @@ pub fn Ymlz(comptime Destination: type) type {
             return str[i..];
         }
 
-        fn getFieldName(self: *Self, raw_line: []const u8, depth: usize) ?[]const u8 {
-            const indent = self.getIndentDepth(depth);
+        fn getFieldName(raw_line: []const u8, depth: usize) ?[]const u8 {
+            const indent = getIndentDepth(depth);
             const line = raw_line[indent..];
             var splitted = std.mem.splitSequence(u8, line, ":");
             // when running on linux, what gets returned here for a non-zero indent is a value prefixed with a space
@@ -191,7 +286,7 @@ pub fn Ymlz(comptime Destination: type) type {
             return trimLeadingSpaces(splitted.next());
         }
 
-        fn parse(self: *Self, comptime T: type, depth: usize) !T {
+        fn parse(self: *Self, reader: anytype, comptime T: type, depth: usize) !T {
             var destination: T = undefined;
             const destination_reflaction = @typeInfo(@TypeOf(destination));
             var totalFieldsParsed: usize = 0;
@@ -204,7 +299,7 @@ pub fn Ymlz(comptime Destination: type) type {
             }
 
             while (totalFieldsParsed < destination_reflaction.@"struct".fields.len) {
-                const raw_line = try self.readLine() orelse {
+                const raw_line = try self.readLine(reader) orelse {
                     break;
                 };
 
@@ -217,7 +312,7 @@ pub fn Ymlz(comptime Destination: type) type {
                     break;
                 }
 
-                const field_name = self.getFieldName(raw_line, depth) orelse {
+                const field_name = getFieldName(raw_line, depth) orelse {
                     @panic(("Failed to get field name from yml file."));
                 };
 
@@ -232,6 +327,7 @@ pub fn Ymlz(comptime Destination: type) type {
 
                         try self.parseField(
                             actual_type_info,
+                            reader,
                             &destination,
                             field,
                             raw_line,
@@ -260,6 +356,7 @@ pub fn Ymlz(comptime Destination: type) type {
         inline fn parseField(
             self: *Self,
             actual_type_info: std.builtin.Type,
+            reader: anytype,
             destination: anytype,
             field: std.builtin.Type.StructField,
             raw_line: []const u8,
@@ -267,27 +364,27 @@ pub fn Ymlz(comptime Destination: type) type {
         ) !void {
             switch (actual_type_info) {
                 .bool => {
-                    @field(destination, field.name) = try self.parseBooleanExpression(raw_line, depth);
+                    @field(destination, field.name) = try parseBooleanExpression(raw_line, depth);
                 },
                 .int => {
-                    @field(destination, field.name) = try self.parseNumericExpression(field.type, raw_line, depth);
+                    @field(destination, field.name) = try parseNumericExpression(field.type, raw_line, depth);
                 },
                 .float => {
-                    @field(destination, field.name) = try self.parseNumericExpression(field.type, raw_line, depth);
+                    @field(destination, field.name) = try parseNumericExpression(field.type, raw_line, depth);
                 },
                 .pointer => {
                     if (actual_type_info.pointer.size == .slice and actual_type_info.pointer.child == u8) {
-                        @field(destination, field.name) = try self.parseStringExpression(raw_line, depth, false);
+                        @field(destination, field.name) = try self.parseStringExpression(reader, raw_line, depth, false);
                     } else if (actual_type_info.pointer.size == .slice and (actual_type_info.pointer.child == []const u8 or actual_type_info.pointer.child == []u8)) {
-                        @field(destination, field.name) = try self.parseStringArrayExpression(actual_type_info.pointer.child, depth + 1);
+                        @field(destination, field.name) = try self.parseStringArrayExpression(reader, actual_type_info.pointer.child, depth + 1);
                     } else if (actual_type_info.pointer.size == .slice and @typeInfo(actual_type_info.pointer.child) != .pointer) {
-                        @field(destination, field.name) = try self.parseArrayExpression(actual_type_info.pointer.child, depth + 1);
+                        @field(destination, field.name) = try self.parseArrayExpression(reader, actual_type_info.pointer.child, depth + 1);
                     } else {
                         @panic("unexpected pointer type recieved - " ++ @typeName(field.type) ++ "\n");
                     }
                 },
                 .@"struct" => {
-                    @field(destination, field.name) = try self.parse(field.type, depth + 1);
+                    @field(destination, field.name) = try self.parse(reader, field.type, depth + 1);
                 },
                 else => {
                     @panic("unexpected type recieved - " ++ @typeName(field.type) ++ "\n");
@@ -295,16 +392,14 @@ pub fn Ymlz(comptime Destination: type) type {
             }
         }
 
-        fn isOptionalFieldExists(self: *Self, lookup_key: []const u8, raw_line: []const u8, depth: usize) !bool {
-            const indent_depth = self.getIndentDepth(depth);
+        fn isOptionalFieldExists(lookup_key: []const u8, raw_line: []const u8, depth: usize) !bool {
+            const indent_depth = getIndentDepth(depth);
             var split_iterator = std.mem.splitSequence(u8, raw_line[indent_depth..], ":");
             const key = split_iterator.next() orelse return false;
             return std.mem.eql(u8, key, lookup_key);
         }
 
-        fn ignoreComment(self: *Self, line: []const u8) []const u8 {
-            _ = self;
-
+        fn ignoreComment(line: []const u8) []const u8 {
             var comment_index: usize = 0;
 
             for (line, 0..line.len) |c, i| {
@@ -329,37 +424,28 @@ pub fn Ymlz(comptime Destination: type) type {
             return line;
         }
 
-        fn readRawLine(self: *Self) !?[]const u8 {
+        fn readRawLine(self: *Self, reader: anytype) !?[]const u8 {
             if (self.suspense.get()) |s| {
                 return s;
             }
-
-            const reader = self.reader orelse return error.NoFileFound;
-            const raw_line = try reader.readUntilDelimiterOrEofAlloc(
-                self.allocator,
-                '\n',
-                constants.MAX_READ_SIZE,
-            );
-
+            const raw_line = try reader.readLine(self.allocator);
             if (raw_line) |line| {
                 try self.allocations.append(self.allocator, line);
-                return line;
             }
-
-            return null;
+            return raw_line;
         }
 
-        fn readLine(self: *Self) !?[]const u8 {
-            const raw_line = try self.readRawLine();
+        fn readLine(self: *Self, reader: anytype) !?[]const u8 {
+            const raw_line = try self.readRawLine(reader);
 
             if (raw_line) |line| {
                 // TODO: What shoud really happen if a file has '---' which means a new document in the same file.
-                if (self.isComment(line) or std.mem.eql(u8, "---", line)) {
+                if (isComment(line) or std.mem.eql(u8, "---", line)) {
                     // Skipping comments
-                    return self.readLine();
+                    return self.readLine(reader);
                 }
 
-                return self.ignoreComment(line);
+                return ignoreComment(line);
             }
 
             return null;
@@ -384,17 +470,17 @@ pub fn Ymlz(comptime Destination: type) type {
 
         fn isArrayEntryOnlyChar(raw_line: []const u8) bool {
             // Trim whitespace to see if this is only the array start char
-            var trimmed_line = std.mem.trimLeft(u8, raw_line, " ");
-            trimmed_line = std.mem.trimRight(u8, trimmed_line, " ");
+            var trimmed_line = trimStart(u8, raw_line, " ");
+            trimmed_line = trimEnd(u8, trimmed_line, " ");
             return std.mem.eql(u8, trimmed_line, "-");
         }
 
-        fn isNewExpression(self: *Self, raw_value_line: []const u8, depth: usize) bool {
+        fn isNewExpression(raw_value_line: []const u8, depth: usize) bool {
             if (raw_value_line.len == 0) {
                 return false;
             }
 
-            const indent_depth = self.getIndentDepth(depth);
+            const indent_depth = getIndentDepth(depth);
 
             for (0..indent_depth) |d| {
                 if (raw_value_line[d] != ' ') {
@@ -405,19 +491,19 @@ pub fn Ymlz(comptime Destination: type) type {
             return false;
         }
 
-        fn parseStringArrayExpression(self: *Self, comptime T: type, depth: usize) ![]T {
+        fn parseStringArrayExpression(self: *Self, reader: anytype, comptime T: type, depth: usize) ![]T {
             var list = try std.ArrayList(T).initCapacity(self.allocator, 0);
             defer list.deinit(self.allocator);
 
             while (true) {
-                const raw_value_line = try self.readLine() orelse break;
+                const raw_value_line = try self.readLine(reader) orelse break;
 
-                if (self.isNewExpression(raw_value_line, depth)) {
+                if (isNewExpression(raw_value_line, depth)) {
                     try self.suspense.set(raw_value_line);
                     break;
                 }
 
-                const result = try self.parseStringExpression(raw_value_line, depth, false);
+                const result = try self.parseStringExpression(reader, raw_value_line, depth, false);
 
                 try list.append(self.allocator, result);
             }
@@ -425,12 +511,12 @@ pub fn Ymlz(comptime Destination: type) type {
             return try list.toOwnedSlice(self.allocator);
         }
 
-        fn parseArrayExpression(self: *Self, comptime T: type, depth: usize) ![]T {
+        fn parseArrayExpression(self: *Self, reader: anytype, comptime T: type, depth: usize) ![]T {
             var list = try std.ArrayList(T).initCapacity(self.allocator, 0);
             defer list.deinit(self.allocator);
 
             while (true) {
-                const raw_value_line = try self.readLine() orelse break;
+                const raw_value_line = try self.readLine(reader) orelse break;
 
                 // If this is only the array entry char '-', just eat this line
                 if (isArrayEntryOnlyChar(raw_value_line)) {
@@ -439,11 +525,11 @@ pub fn Ymlz(comptime Destination: type) type {
 
                 try self.suspense.set(raw_value_line);
 
-                if (self.isNewExpression(raw_value_line, depth)) {
+                if (isNewExpression(raw_value_line, depth)) {
                     break;
                 }
 
-                const result = try self.parse(T, depth + 1);
+                const result = try self.parse(reader, T, depth + 1);
 
                 try list.append(self.allocator, result);
             }
@@ -451,39 +537,39 @@ pub fn Ymlz(comptime Destination: type) type {
             return try list.toOwnedSlice(self.allocator);
         }
 
-        fn parseStringExpression(self: *Self, raw_line: []const u8, depth: usize, is_multiline: bool) ![]const u8 {
-            const expression = try self.parseSimpleExpression(raw_line, depth, is_multiline);
-            const value = self.getExpressionValueWithTrim(expression);
+        fn parseStringExpression(self: *Self, reader: anytype, raw_line: []const u8, depth: usize, is_multiline: bool) ![]const u8 {
+            const expression = try parseSimpleExpression(raw_line, depth, is_multiline);
+            const value = getExpressionValueWithTrim(expression);
 
             if (value.len == 0) return value;
 
             switch (value[0]) {
                 '|' => {
-                    return self.parseMultilineString(depth + 1, true);
+                    return self.parseMultilineString(reader, depth + 1, true);
                 },
                 '>' => {
-                    return self.parseMultilineString(depth + 1, false);
+                    return self.parseMultilineString(reader, depth + 1, false);
                 },
                 else => return value,
             }
         }
 
-        fn parseMultilineString(self: *Self, depth: usize, preserve_new_line: bool) ![]const u8 {
+        fn parseMultilineString(self: *Self, reader: anytype, depth: usize, preserve_new_line: bool) ![]const u8 {
             var list = try std.ArrayList(u8).initCapacity(self.allocator, 0);
             defer list.deinit(self.allocator);
 
             while (true) {
-                const raw_value_line = try self.readRawLine() orelse break;
+                const raw_value_line = try self.readRawLine(reader) orelse break;
 
-                if (self.isNewExpression(raw_value_line, depth)) {
+                if (isNewExpression(raw_value_line, depth)) {
                     try self.suspense.set(raw_value_line);
                     if (preserve_new_line)
                         _ = list.pop();
                     break;
                 }
 
-                const expression = try self.parseSimpleExpression(raw_value_line, depth, true);
-                const value = self.getExpressionValue(expression);
+                const expression = try parseSimpleExpression(raw_value_line, depth, true);
+                const value = getExpressionValue(expression);
 
                 try list.appendSlice(self.allocator, value);
 
@@ -498,22 +584,20 @@ pub fn Ymlz(comptime Destination: type) type {
             return str;
         }
 
-        fn getExpressionValueWithTrim(self: *Self, expression: Expression) []const u8 {
-            return std.mem.trim(u8, self.getExpressionValue(expression), " ");
+        fn getExpressionValueWithTrim(expression: Expression) []const u8 {
+            return std.mem.trim(u8, getExpressionValue(expression), " ");
         }
 
-        fn getExpressionValue(self: *Self, expression: Expression) []const u8 {
-            _ = self;
-
+        fn getExpressionValue(expression: Expression) []const u8 {
             switch (expression.value) {
                 .Simple => return expression.value.Simple,
                 .KV => return expression.value.KV.value,
             }
         }
 
-        fn parseBooleanExpression(self: *Self, raw_line: []const u8, depth: usize) !bool {
-            const expression = try self.parseSimpleExpression(raw_line, depth, false);
-            const value = self.getExpressionValueWithTrim(expression);
+        fn parseBooleanExpression(raw_line: []const u8, depth: usize) !bool {
+            const expression = try parseSimpleExpression(raw_line, depth, false);
+            const value = getExpressionValueWithTrim(expression);
 
             const isBooleanTrue = std.mem.eql(u8, value, "True") or std.mem.eql(u8, value, "true") or std.mem.eql(u8, value, "On") or std.mem.eql(u8, value, "on");
 
@@ -530,9 +614,9 @@ pub fn Ymlz(comptime Destination: type) type {
             return error.NotBoolean;
         }
 
-        fn parseNumericExpression(self: *Self, comptime T: type, raw_line: []const u8, depth: usize) !T {
-            const expression = try self.parseSimpleExpression(raw_line, depth, false);
-            const value = self.getExpressionValueWithTrim(expression);
+        fn parseNumericExpression(comptime T: type, raw_line: []const u8, depth: usize) !T {
+            const expression = try parseSimpleExpression(raw_line, depth, false);
+            const value = getExpressionValueWithTrim(expression);
 
             switch (@typeInfo(T)) {
                 .int => {
@@ -547,9 +631,7 @@ pub fn Ymlz(comptime Destination: type) type {
             }
         }
 
-        fn withoutQuotes(self: *Self, line: []const u8) []const u8 {
-            _ = self;
-
+        fn withoutQuotes(line: []const u8) []const u8 {
             if ((line[0] == '\'' or line[0] == '"') and (line[line.len - 1] == '\'' or line[line.len - 1] == '"')) {
                 return line[1 .. line.len - 1];
             }
@@ -557,8 +639,8 @@ pub fn Ymlz(comptime Destination: type) type {
             return line;
         }
 
-        fn parseSimpleExpression(self: *Self, raw_line: []const u8, depth: usize, is_multiline: bool) !Expression {
-            const indent_depth = self.getIndentDepth(depth);
+        fn parseSimpleExpression(raw_line: []const u8, depth: usize, is_multiline: bool) !Expression {
+            const indent_depth = getIndentDepth(depth);
 
             if (raw_line.len < indent_depth) {
                 return .{
@@ -579,7 +661,7 @@ pub fn Ymlz(comptime Destination: type) type {
 
             if (line[0] == '-') {
                 return .{
-                    .value = .{ .Simple = self.withoutQuotes(line[2..]) },
+                    .value = .{ .Simple = withoutQuotes(line[2..]) },
                     .raw = raw_line,
                 };
             }
@@ -590,13 +672,13 @@ pub fn Ymlz(comptime Destination: type) type {
 
             const value = tokens_iterator.next() orelse {
                 return .{
-                    .value = .{ .Simple = self.withoutQuotes(line) },
+                    .value = .{ .Simple = withoutQuotes(line) },
                     .raw = raw_line,
                 };
             };
 
             return .{
-                .value = .{ .KV = .{ .key = key, .value = self.withoutQuotes(value) } },
+                .value = .{ .KV = .{ .key = key, .value = withoutQuotes(value) } },
                 .raw = raw_line,
             };
         }
@@ -608,6 +690,11 @@ test {
     _ = @import("tests.zig");
 }
 
+const testing_io: Io = if (isZig0_16)
+    std.testing.io
+else
+    .{};
+
 test "should be able to parse simple types" {
     const Subject = struct {
         first: i32,
@@ -616,9 +703,10 @@ test "should be able to parse simple types" {
         fourth: f32,
     };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
+    const yml_file_location = try Dir.cwd().realPathFileAlloc(
+        testing_io,
         "./resources/super_simple.yml",
+        std.testing.allocator,
     );
     defer std.testing.allocator.free(yml_file_location);
 
@@ -641,9 +729,10 @@ test "should be able to parse array types" {
         foods: [][]const u8,
     };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
+    const yml_file_location = try Dir.cwd().realPathFileAlloc(
+        testing_io,
         "./resources/super_simple.yml",
+        std.testing.allocator,
     );
     defer std.testing.allocator.free(yml_file_location);
 
@@ -676,9 +765,10 @@ test "should be able to parse deeps/recursive structs" {
         },
     };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
+    const yml_file_location = try Dir.cwd().realPathFileAlloc(
+        testing_io,
         "./resources/super_simple.yml",
+        std.testing.allocator,
     );
     defer std.testing.allocator.free(yml_file_location);
 
@@ -705,9 +795,10 @@ test "should be able to parse booleans in all its forms" {
         eighth: bool,
     };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
+    const yml_file_location = try Dir.cwd().realPathFileAlloc(
+        testing_io,
         "./resources/booleans.yml",
+        std.testing.allocator,
     );
     defer std.testing.allocator.free(yml_file_location);
 
@@ -731,9 +822,10 @@ test "should be able to parse multiline" {
         second_multiline: []const u8,
     };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
+    const yml_file_location = try Dir.cwd().realPathFileAlloc(
+        testing_io,
         "./resources/multilines.yml",
+        std.testing.allocator,
     );
     defer std.testing.allocator.free(yml_file_location);
 
@@ -756,9 +848,10 @@ test "should be able to ignore single quotes and double quotes" {
         three: []const u8,
     };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
+    const yml_file_location = try Dir.cwd().realPathFileAlloc(
+        testing_io,
         "./resources/quotes.yml",
+        std.testing.allocator,
     );
     defer std.testing.allocator.free(yml_file_location);
 
@@ -793,9 +886,10 @@ test "should be able to parse arrays of T" {
         tutorial: []Tutorial,
     };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
+    const yml_file_location = try Dir.cwd().realPathFileAlloc(
+        testing_io,
         "./resources/tutorial.yml",
+        std.testing.allocator,
     );
     defer std.testing.allocator.free(yml_file_location);
 
@@ -892,9 +986,10 @@ test "should be able to parse arrays and arrays in arrays" {
         shaders: []Shader,
     };
 
-    const yml_path = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
+    const yml_path = try Dir.cwd().realPathFileAlloc(
+        testing_io,
         "./resources/shader.yml",
+        std.testing.allocator,
     );
     defer std.testing.allocator.free(yml_path);
 
@@ -935,9 +1030,10 @@ test "should be able to to skip optional fields if non-existent in the parsed fi
         },
     };
 
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
-        std.testing.allocator,
+    const yml_file_location = try Dir.cwd().realPathFileAlloc(
+        testing_io,
         "./resources/super_simple_with_optional.yml",
+        std.testing.allocator,
     );
     defer std.testing.allocator.free(yml_file_location);
 
@@ -973,9 +1069,10 @@ test "should handle optional for new array index" {
             extra_information: ?[]const u8,
         },
     };
-    const yml_file_location = try std.fs.cwd().realpathAlloc(
+    const yml_file_location = try Dir.cwd().realPathFileAlloc(
+        testing_io,
+        "./resources/optional_array.yml",
         std.testing.allocator,
-        "./resources/optional_array.yml"
     );
     defer std.testing.allocator.free(yml_file_location);
 

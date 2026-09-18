@@ -1,7 +1,8 @@
 .{
     .name = .ymlz,
-    .version = "0.5.0",
+    .version = "0.6.1",
     .dependencies = .{},
+    .minimum_zig_version = "0.15.0",
     .paths = .{
         "build.zig",
         "build.zig.zon",
